@@ -4,6 +4,10 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.figure
+
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PredictedModel:
@@ -35,6 +39,10 @@ class AFOutput:
     def __init__(self, path: str):
         self.path: Path = self.check_path(path)
         self.predictions = self.get_predictions()
+
+        self._colors = list(mcolors.TABLEAU_COLORS.values())
+        px = 1 / plt.rcParams["figure.dpi"]
+        self._figsize = (1618 * px, 1000 * px)
 
     def check_path(self, path) -> Path:
         p: Path = Path(path)
@@ -159,3 +167,57 @@ class AFOutput:
             raise Exception(
                 f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
             )
+
+    def _plot_plddt(self,
+                    pred: Prediction,
+                    is_relaxed: bool = True) -> matplotlib.figure.Figure:
+        if not is_relaxed or pred.af_version == 3:
+            assert pred.models_unrelaxed
+            models: list[PredictedModel] = pred.models_unrelaxed
+        else:
+            assert pred.models_relaxed
+            models: list[PredictedModel] = pred.models_relaxed
+
+        fig = plt.figure(figsize=self._figsize)
+        ax = plt.axes()
+        ax.set(ylabel="pLDDT", ylim=(0, 100))
+        ax.set_xlabel("Residue") if pred.af_version == 2 else ax.set_xlabel(
+            "Atom")
+
+        # AF pLDDT colors
+        ax.axhspan(90, 100, facecolor="#106DFF", alpha=0.15)
+        ax.axhspan(70, 90, facecolor="#10CFF1", alpha=0.15)
+        ax.axhspan(50, 70, facecolor="#F6ED12", alpha=0.15)
+        ax.axhspan(00, 50, facecolor="#EF821E", alpha=0.15)
+
+        for model in models:
+            if model.af_version == 2:
+                ax.plot(
+                    range(1,
+                          len(model.residue_pLDDT) + 1),
+                    model.residue_pLDDT,
+                    color=self._colors[model.rank - 1 % len(self._colors)],
+                    label=
+                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_pLDDT:.3f}"
+                )
+            # if AF3
+            elif model.af_version == 3:
+                ax.plot(
+                    range(1,
+                          len(model.atom_pLDDT) + 1),
+                    model.atom_pLDDT,
+                    color=self._colors[model.rank - 1 % len(self._colors)],
+                    label=
+                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_pLDDT:.3f}"
+                )
+        fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
+        fig.tight_layout()
+        return fig
+
+    def plot_plddt_graphs(self,
+                          is_relaxed: bool = True
+                          ) -> list[matplotlib.figure.Figure]:
+        figures: list[matplotlib.figure.Figure] = []
+        for pred in self.predictions:
+            figures.append(self._plot_plddt(pred, is_relaxed))
+        return figures
