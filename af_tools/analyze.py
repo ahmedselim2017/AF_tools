@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.figure
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -168,10 +169,10 @@ class AFOutput:
                 f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
             )
 
-    def _plot_plddt(self,
-                    pred: Prediction,
-                    is_relaxed: bool = True) -> matplotlib.figure.Figure:
-        if not is_relaxed or pred.af_version == 3:
+    def plot_plddt(self,
+                   pred: Prediction,
+                   is_relaxed_af2: bool = True) -> matplotlib.figure.Figure:
+        if not is_relaxed_af2 or pred.af_version == 3:
             assert pred.models_unrelaxed
             models: list[PredictedModel] = pred.models_unrelaxed
         else:
@@ -214,10 +215,44 @@ class AFOutput:
         fig.tight_layout()
         return fig
 
-    def plot_plddt_graphs(self,
-                          is_relaxed: bool = True
-                          ) -> list[matplotlib.figure.Figure]:
+    def plot_all_plddts(
+            self,
+            is_relaxed_af2: bool = True) -> list[matplotlib.figure.Figure]:
         figures: list[matplotlib.figure.Figure] = []
         for pred in self.predictions:
-            figures.append(self._plot_plddt(pred, is_relaxed))
+            figures.append(self.plot_plddt(pred, is_relaxed_af2))
         return figures
+
+    def plot_pae(self,
+                 pred: Prediction,
+                 is_relaxed_af2: bool = True) -> matplotlib.figure.Figure:
+
+        if not is_relaxed_af2 or pred.af_version == 3:
+            assert pred.models_unrelaxed
+            models: list[PredictedModel] = pred.models_unrelaxed
+        else:
+            assert pred.models_relaxed
+            models: list[PredictedModel] = pred.models_relaxed
+
+        fig = plt.figure(figsize=self._figsize)
+        grid = ImageGrid(
+            fig,
+            111,
+            nrows_ncols=(1, len(models)),
+            axes_pad=0.1,
+            cbar_location="right",
+            cbar_mode="single",
+            cbar_size="7%",
+            cbar_pad=0.15,
+        )
+
+        for i, ax in enumerate(grid):
+
+            ax.set(ylabel="Residue",
+                   xlabel="Residue",
+                   title=f"Rank {models[i].rank}")
+
+            cax = ax.imshow(models[i].pae, cmap="bwr")
+        ax.cax.colorbar(cax)
+
+        return fig

@@ -25,15 +25,31 @@ def test_af3_pred_detection() -> None:
 
 def test_af2_pred_plddt() -> None:
     af2output = AFOutput("./tests/data/af2")
-    fig = af2output.plot_plddt_graphs(is_relaxed=True)[0]
+    fig = af2output.plot_all_plddts(is_relaxed_af2=True)[0]
 
-    fig.show()
+    # fig.show()
     # input()
 
 
 def test_af3_pred_plddt() -> None:
     af3output = AFOutput("./tests/data/af3")
-    fig = af3output.plot_plddt_graphs(is_relaxed=False)[0]
+    fig = af3output.plot_all_plddts(is_relaxed_af2=False)[0]
+
+    # fig.show()
+    # input()
+
+
+def test_af2_plot_pae() -> None:
+    af2output = AFOutput("./tests/data/af2")
+    fig = af2output.plot_pae(af2output.predictions[0])
+
+    # fig.show()
+    # input()
+
+
+def test_af3_plot_pae() -> None:
+    af3output = AFOutput("./tests/data/af3")
+    fig = af3output.plot_pae(af3output.predictions[0])
 
     fig.show()
-    # input()
+    input()
