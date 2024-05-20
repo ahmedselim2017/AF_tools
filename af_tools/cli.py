@@ -25,11 +25,7 @@ def cli() -> None:
     path_af = pathlib.Path(dir_af)
     path_fig = pathlib.Path(dir_fig)
 
-    if not path_af.is_dir():
-        emsg = f"ERROR!! Given Alphafold output directory is not a valid directory: {dir_af}\n"
-        sys.stderr.write(emsg)
-        sys.exit(1)
-    elif path_fig.is_file():
+    if path_fig.is_file():
         emsg = f"ERROR!! Given figure output directory is an existing file: {dir_fig}\n"
         sys.stderr.write(emsg)
         sys.exit(1)
