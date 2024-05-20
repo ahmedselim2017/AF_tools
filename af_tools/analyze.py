@@ -8,10 +8,9 @@ from numpy.typing import NDArray
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PredictedModel:
     name: str
-    pdb_path: Path
+    model_path: Path
     json_path: Path
     rank: int
-    res_length: int
     mean_pLDDT: float
     pTM: float
     pae: np.ndarray
@@ -27,7 +26,7 @@ class Prediction:
     num_ranks: int
     path: Path
     af_version: int
-    models_relaxed: list[PredictedModel]
+    models_relaxed: list[PredictedModel] | None
     models_unrelaxed: list[PredictedModel]
 
 
@@ -35,6 +34,7 @@ class AFOutput:
 
     def __init__(self, path: str):
         self.path: Path = self.check_path(path)
+        self.predictions = self.get_predictions()
 
     def check_path(self, path) -> Path:
         p: Path = Path(path)
@@ -43,71 +43,119 @@ class AFOutput:
                 f"Alphafold output directory is not a valid directory: {p}")
         return p
 
-    def get_predictions(self):
+    def get_predictions(self) -> list[Prediction]:
+        predictions: list[Prediction] = []
         for af2_pred_done in self.path.glob("*.done.txt"):
             name: str = af2_pred_done.name.split(".")[0]
 
-            m_unrel_pdb_paths: list[Path] = sorted(
+            unrel_model_paths: list[Path] = sorted(
                 self.path.glob(f"{name}_unrelaxed_rank_*pdb"))
-            m_json_paths: list[Path] = sorted(
-                self.path.glob(f"{name}_scores_rank_*pdb"))
+            model_fulljson_paths: list[Path] = sorted(
+                self.path.glob(f"{name}_scores_rank_*json"))
 
             unrelaxed_models: list[PredictedModel] = []
             relaxed_models: list[PredictedModel] = []
-            for i, (m_unrel_pdb_path, m_json_path) in enumerate(
-                    zip(m_unrel_pdb_paths, m_json_paths)):
+            for i, (unrel_model_path, model_fulljson_path) in enumerate(
+                    zip(unrel_model_paths, model_fulljson_paths)):
 
-                with open(m_json_path, "r") as m_json_file:
-                    m_json: dict = json.load(m_json_file)
+                with open(model_fulljson_path, "r") as model_fulljson_file:
+                    model_json: dict = json.load(model_fulljson_file)
 
-                np_plddt: NDArray = np.asarray(m_json["plddt"])
-                np_pae: NDArray = np.asarray(m_json["pae"])
+                np_plddt: NDArray = np.asarray(model_json["plddt"])
+                np_pae: NDArray = np.asarray(model_json["pae"])
                 unrelaxed_models.append(
                     PredictedModel(name=name,
-                                   pdb_path=m_unrel_pdb_path,
-                                   json_path=m_json_path,
+                                   model_path=unrel_model_path,
+                                   json_path=model_fulljson_path,
                                    rank=i + 1,
-                                   res_length=len(m_json["plddt"]),
                                    mean_pLDDT=np.average(np_plddt, axis=0),
-                                   pTM=m_json["ptm"],
+                                   pTM=model_json["ptm"],
                                    pae=np_pae,
                                    atom_pLDDT=None,
                                    residue_pLDDT=np_plddt,
                                    af_version=2,
                                    is_relaxed=False))
 
-            m_rel_pdb_paths: list[Path] = sorted(
+            rel_model_paths: list[Path] = sorted(
                 self.path.glob(f"{name}_relaxed_rank_*pdb"))
-            for i, m_rel_pdb_path in enumerate(m_rel_pdb_paths):
+            for i, rel_model_path in enumerate(rel_model_paths):
 
-                m_json_path: Path = next(
+                model_fulljson_path: Path = next(
                     self.path.glob(
                         f"{name}_scores_rank_{i+1:03d}_alphafold2*json"))
-                with open(m_json_path, "r") as m_json_file:
-                    m_json: dict = json.load(m_json_file)
+                with open(model_fulljson_path, "r") as model_fulljson_file:
+                    model_json: dict = json.load(model_fulljson_file)
 
-                np_plddt = np.asarray(m_json["plddt"])
-                np_pae = np.asarray(m_json["pae"])
+                np_plddt = np.asarray(model_json["plddt"])
+                np_pae = np.asarray(model_json["pae"])
                 relaxed_models.append(
                     PredictedModel(name=name,
-                                   pdb_path=m_rel_pdb_path,
-                                   json_path=m_json_path,
+                                   model_path=rel_model_path,
+                                   json_path=model_fulljson_path,
                                    rank=i + 1,
-                                   res_length=len(m_json["plddt"]),
                                    mean_pLDDT=np.average(np_plddt, axis=0),
-                                   pTM=m_json["ptm"],
+                                   pTM=model_json["ptm"],
                                    pae=np_pae,
                                    atom_pLDDT=None,
                                    residue_pLDDT=np_plddt,
                                    af_version=2,
                                    is_relaxed=False))
-            Prediction(
-                name=name,
-                num_ranks=len(unrelaxed_models),
-                path=self.path,
-                af_version=2,
-                models_relaxed=relaxed_models,
-                models_unrelaxed=unrelaxed_models,
-            )
+            predictions.append(
+                Prediction(
+                    name=name,
+                    num_ranks=len(unrelaxed_models),
+                    path=self.path,
+                    af_version=2,
+                    models_relaxed=relaxed_models,
+                    models_unrelaxed=unrelaxed_models,
+                ))
 
-            return
+        if predictions:
+            return predictions
+
+        if (self.path / "terms_of_use.md").is_file():
+            model_paths = sorted(self.path.glob("*model*.cif"))
+            model_fulljson_paths = sorted(self.path.glob("*full_data_*.json"))
+            model_summaryjson_paths = sorted(
+                self.path.glob("*summary_confidences*.json"))
+
+            predicted_models: list[PredictedModel] = []
+            for i, (model_path, model_fulljson_path,
+                    model_summaryjson_path) in enumerate(
+                        zip(model_paths, model_fulljson_paths,
+                            model_summaryjson_paths)):
+                with open(model_fulljson_path, "r") as model_fulljson_file:
+                    model_fulldata: dict = json.load(model_fulljson_file)
+                with open(model_summaryjson_path,
+                          "r") as model_summaryjson_file:
+                    model_summarydata: dict = json.load(model_summaryjson_file)
+
+                name: str = model_fulljson_path.name.split("_full_data_")[0]
+                np_plddt: NDArray = np.asarray(model_fulldata["atom_plddts"])
+                np_pae: NDArray = np.asarray(model_fulldata["pae"])
+                predicted_models.append(
+                    PredictedModel(name=name,
+                                   model_path=model_path,
+                                   json_path=model_fulljson_path,
+                                   rank=i + 1,
+                                   mean_pLDDT=np.average(np_plddt, axis=0),
+                                   pTM=model_summarydata["ptm"],
+                                   pae=np_pae,
+                                   atom_pLDDT=np_plddt,
+                                   residue_pLDDT=None,
+                                   af_version=3,
+                                   is_relaxed=None))
+
+            predictions.append(
+                Prediction(
+                    name=name,  # type: ignore
+                    num_ranks=len(predicted_models),
+                    path=self.path,
+                    af_version=3,
+                    models_relaxed=None,
+                    models_unrelaxed=predicted_models))
+            return predictions
+        else:
+            raise Exception(
+                f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
+            )
