@@ -2,14 +2,10 @@ from dataclasses import dataclass
 
 import json
 from pathlib import Path
-import numpy as np
-from numpy.typing import NDArray
-import typing
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.figure
-from mpl_toolkits.axes_grid1 import ImageGrid
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -109,7 +105,7 @@ class AFOutput:
                 ):
                     chain_lengths += [seq_len] * seq_cardinality
 
-                chain_ends = []
+                chain_ends: list[int] = []
                 for chain_len in chain_lengths:
                     if chain_ends == []:
                         chain_ends.append(chain_len)
@@ -214,7 +210,7 @@ class AFOutput:
                 atom_id_old = atom_id
             atom_chain_lengths.append(chain_length)
 
-            atom_chain_ends = []
+            atom_chain_ends: list[int] = []
             for chain_len in atom_chain_lengths:
                 if atom_chain_ends == []:
                     atom_chain_ends.append(chain_len)
@@ -234,7 +230,7 @@ class AFOutput:
                 token_id_old = token_id
             token_chain_lengths.append(chain_length)
 
-            token_chain_ends = []
+            token_chain_ends: list[int] = []
             for chain_len in token_chain_lengths:
                 if token_chain_ends == []:
                     token_chain_ends.append(chain_len)
@@ -294,7 +290,6 @@ class AFOutput:
                 )
 
                 if len(model.atom_chain_ends) > 1:
-                    print("x", model.atom_chain_ends)
                     ax.vlines(
                         model.atom_chain_ends[:-1],
                         ymin=0,
@@ -314,49 +309,65 @@ class AFOutput:
                 )
 
                 if len(model.chain_ends) > 1:
-                    print("x", model.chain_ends)
                     ax.vlines(model.chain_ends[:-1], ymin=0, ymax=100, color="black")
 
         fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
         fig.tight_layout()
         return fig
 
-    def plot_all_plddts(
-        self, is_relaxed_af2: bool = True
-    ) -> list[matplotlib.figure.Figure]:
+    def plot_all_plddts(self) -> list[matplotlib.figure.Figure]:
         figures: list[matplotlib.figure.Figure] = []
         for pred in self.predictions:
             figures.append(self.plot_plddt(pred))
         return figures
 
-    def plot_pae(
-        self, pred: Prediction, is_relaxed_af2: bool = True
-    ) -> matplotlib.figure.Figure:
-
-        if not is_relaxed_af2 or pred.af_version == 3:
-            assert pred.models_unrelaxed
-            models: list[PredictedModel] = pred.models_unrelaxed
-        else:
-            assert pred.models_relaxed
-            models: list[PredictedModel] = pred.models_relaxed
+    def plot_pae(self, pred: Prediction) -> matplotlib.figure.Figure:
 
         fig = plt.figure(figsize=self._figsize)
-        grid = ImageGrid(
-            fig,
-            111,
-            nrows_ncols=(1, len(models)),
-            axes_pad=0.1,
-            cbar_location="right",
-            cbar_mode="single",
-            cbar_size="7%",
-            cbar_pad=0.15,
-        )
+        cols = len(pred.models_unrelaxed)
+        for i, model in enumerate(pred.models_unrelaxed):
+            ax = fig.add_subplot(1, cols, i + 1)
+            ends: list[int] = []
 
-        for i, ax in enumerate(grid):  # type: ignore
+            if pred.af_version == "alphafold3":
+                ax.set(ylabel="Token", xlabel="Token", title=f"Rank {model.rank}")
+                assert isinstance(model, AF3Model)
+                ends = model.token_chain_ends
 
-            ax.set(ylabel="Residue", xlabel="Residue", title=f"Rank {models[i].rank}")
+            elif "alphafold2" in pred.af_version:
+                ax.set(ylabel="Residue", xlabel="Residue", title=f"Rank {model.rank}")
+                assert isinstance(model, AF2Model)
+                ends = model.chain_ends
 
-            cax = ax.imshow(models[i].pae, cmap="bwr")
-        ax.cax.colorbar(cax)
+            cax = ax.matshow(
+                model.pae,
+                cmap="bwr",
+                extent=(0.5, len(model.pae) - 0.5, len(model.pae) - 0.5, 0.5),
+            )
+            fig.colorbar(cax, fraction=0.046, pad=0.04)
 
+            if len(ends) > 1:
+                ax.vlines(
+                    ends[:-1],
+                    ymin=0.5,
+                    ymax=len(model.pae) - 0.5,
+                    color="black",
+                    linewidth=2,
+                )
+                ax.hlines(
+                    ends[:-1],
+                    xmin=0.5,
+                    xmax=len(model.pae) - 0.5,
+                    color="black",
+                    linewidth=2,
+                )
+
+            ax.tick_params(axis="x", labelrotation=90)
+        fig.tight_layout()
         return fig
+
+    def plot_all_paes(self) -> list[matplotlib.figure.Figure]:
+        figures: list[matplotlib.figure.Figure] = []
+        for pred in self.predictions:
+            figures.append(self.plot_pae(pred))
+        return figures

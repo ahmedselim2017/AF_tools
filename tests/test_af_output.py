@@ -51,5 +51,29 @@ def test_af3_multimer_pred_plddt() -> None:
     af3output = AFOutput("./tests/data/af3_multimer")
     fig = af3output.plot_all_plddts()[0]
 
+    # fig.show()
+    # input()
+
+
+def test_af3_pred_pae() -> None:
+    af3output = AFOutput("./tests/data/af3")
+    fig = af3output.plot_pae(af3output.predictions[0])
+
+    # fig.show()
+    # input()
+
+
+def test_af3_multimer_pred_pae() -> None:
+    af3output = AFOutput("./tests/data/af3_multimer")
+    fig = af3output.plot_pae(af3output.predictions[0])
+
+    # fig.show()
+    # input()
+
+
+def test_colabfold_multimer_pred_pae() -> None:
+    af2output = AFOutput("./tests/data/colabfold_multimer")
+    fig = af2output.plot_pae(af2output.predictions[0])
+
     fig.show()
     input()
