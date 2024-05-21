@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 
+
 import orjson
 from pathlib import Path
+import numpy as np
+from numpy.typing import NDArray
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -16,23 +19,21 @@ class PredictedModel:
     rank: int
     mean_plddt: float
     ptm: float
-    pae: list[float]
+    pae: NDArray
     af_version: str
 
 
 @dataclass(frozen=True, kw_only=True)
 class AF2Model(PredictedModel):
-    residue_plddts: list[float]
+    residue_plddts: NDArray
     chain_ends: list[int]
-    is_relaxed: bool
+    relaxed_pdb_path: Path | None
 
 
 @dataclass(frozen=True, kw_only=True)
 class AF3Model(PredictedModel):
-    atom_plddts: list[float]
-    atom_chain_ids: list[int]
+    atom_plddts: NDArray
     atom_chain_ends: list[int]
-    token_chain_ids: list[int]
     token_chain_ends: list[int]
 
 
@@ -41,8 +42,7 @@ class Prediction:
     name: str
     num_ranks: int
     af_version: str
-    models_relaxed: list[PredictedModel] | None
-    models_unrelaxed: list[PredictedModel]
+    models: list[PredictedModel]
     is_colabfold: bool
 
 
@@ -81,7 +81,7 @@ class AFOutput:
 
     def get_pred_recursively(self, pred_type:str) -> list[Prediction]:
         predictions: list[Prediction] = []
-        for output in sorted(list(self.path.rglob("config.json"))):
+        for output in self.path.rglob("config.json"):
             print(output)
             afoutput = AFOutput(path = output.parent)
             predictions += afoutput.predictions
@@ -126,45 +126,32 @@ class AFOutput:
             model_rel_paths = sorted(self.path.glob(f"{pred_name}_relaxed_rank_*.pdb"))
             score_paths = sorted(self.path.glob(f"{pred_name}_scores_rank_*.json"))
 
-            models_rel: list[PredictedModel] = []
-            models_unrel: list[PredictedModel] = []
+            models: list[PredictedModel] = []
             for i, (model_unrel_path, score_path) in enumerate(
                 zip(model_unrel_paths, score_paths)
             ):
-                with open(score_path, "rb") as score_file:
-                    score_data = orjson.loads(score_file.read())
+                model_rel_path = None
                 if i < config_data["num_relax"]:
                     model_rel_path = model_rel_paths[i]
 
-                    models_rel.append(
-                        AF2Model(
-                            name=pred_name,
-                            model_path=model_rel_path,
-                            json_path=score_path,
-                            rank=i + 1,
-                            mean_plddt=sum(score_data["plddt"])
-                            / len(score_data["plddt"]),
-                            ptm=score_data["ptm"],
-                            pae=score_data["pae"],
-                            af_version=af_version,
-                            residue_plddts=score_data["plddt"],
-                            chain_ends=chain_ends,
-                            is_relaxed=True,
-                        )
-                    )
-                models_unrel.append(
+                with open(score_path, "rb") as score_file:
+                    score_data = orjson.loads(score_file.read())
+                pae = np.asarray(score_data["pae"])
+                plddt = np.asarray(score_data["plddt"])
+
+                models.append(
                     AF2Model(
                         name=pred_name,
                         model_path=model_unrel_path,
+                        relaxed_pdb_path=model_rel_path,
                         json_path=score_path,
                         rank=i + 1,
-                        mean_plddt=sum(score_data["plddt"]) / len(score_data["plddt"]),
+                        mean_plddt=np.average(plddt, axis=0),
                         ptm=score_data["ptm"],
-                        pae=score_data["pae"],
+                        pae=pae,
                         af_version=af_version,
-                        residue_plddts=score_data["plddt"],
+                        residue_plddts=plddt,
                         chain_ends=chain_ends,
-                        is_relaxed=False,
                     )
                 )
             preds.append(
@@ -172,8 +159,7 @@ class AFOutput:
                     name=pred_name,
                     num_ranks=num_ranks,
                     af_version=af_version,
-                    models_relaxed=models_rel,
-                    models_unrelaxed=models_unrel,
+                    models=models,
                     is_colabfold=True,
                 )
             )
@@ -251,9 +237,7 @@ class AFOutput:
                     pae=full_data["pae"],
                     af_version=af_version,
                     atom_plddts=full_data["atom_plddts"],
-                    atom_chain_ids=full_data["atom_chain_ids"],
                     atom_chain_ends=atom_chain_ends,
-                    token_chain_ids=full_data["token_chain_ids"],
                     token_chain_ends=token_chain_ends,
                 )
             )
@@ -262,8 +246,7 @@ class AFOutput:
                 name=pred_name,
                 num_ranks=len(models),
                 af_version=af_version,
-                models_relaxed=None,
-                models_unrelaxed=models,
+                models=models,
                 is_colabfold=False,
             )
         ]
@@ -314,7 +297,7 @@ class AFPlotter:
 
         if pred.af_version == "alphafold3":
             ax.set_xlabel("Atom")
-            for model in reversed(pred.models_unrelaxed):
+            for model in reversed(pred.models):
                 assert isinstance(model, AF3Model)
                 ax.plot(
                     range(1, len(model.atom_plddts) + 1),
@@ -333,7 +316,7 @@ class AFPlotter:
 
         elif "alphafold2" in pred.af_version:
             ax.set_xlabel("Residue")
-            for model in reversed(pred.models_unrelaxed):
+            for model in reversed(pred.models):
                 assert isinstance(model, AF2Model)
                 ax.plot(
                     range(1, len(model.residue_plddts) + 1),
@@ -352,8 +335,8 @@ class AFPlotter:
     def plot_pae(self, pred: Prediction) -> matplotlib.figure.Figure:
 
         fig = plt.figure(figsize=self.figsize)
-        cols = len(pred.models_unrelaxed)
-        for i, model in enumerate(pred.models_unrelaxed):
+        cols = len(pred.models)
+        for i, model in enumerate(pred.models):
             ax = fig.add_subplot(1, cols, i + 1)
             ends: list[int] = []
 

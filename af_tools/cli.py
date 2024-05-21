@@ -37,6 +37,7 @@ def cli() -> None:
     afplotter = AFPlotter()
 
     for pred in afoutput.predictions:
+        continue
         fig_plddt = afplotter.plot_plddt(pred)
         fig_plddt.savefig(path_fig / f"{pred.name}_plddt.png", bbox_inches="tight")
         fig_plddt.savefig(path_fig / f"{pred.name}_plddt.pdf", bbox_inches="tight")
