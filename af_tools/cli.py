@@ -11,14 +11,15 @@ def get_args() -> tuple:
 
     parser.add_argument("--af_dir", help="Output directory of Alphafold", required=True)
     parser.add_argument("--fig_dir", help="Directory for figure outputs", required=True)
+    parser.add_argument("--rec", action=argparse.BooleanOptionalAction, help="Search the output directory recursively", default=False, required=False)
 
     args = parser.parse_args()
 
-    return args.af_dir, args.fig_dir, args.verbose
+    return args.af_dir, args.fig_dir, args.rec
 
 
 def cli() -> None:
-    dir_af, dir_fig, is_verbose = get_args()
+    dir_af, dir_fig, search_recursively = get_args()
 
     path_fig = pathlib.Path(dir_fig)
 
@@ -32,7 +33,7 @@ def cli() -> None:
 
         path_fig.mkdir(parents=True)
 
-    afoutput = AFOutput(dir_af)
+    afoutput = AFOutput(dir_af, search_recursively)
     afplotter = AFPlotter()
 
     for pred in afoutput.predictions:

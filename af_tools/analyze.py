@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-import json
+import orjson
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -48,12 +48,16 @@ class Prediction:
 
 class AFOutput:
 
-    def __init__(self, path: str):
+    def __init__(self, path: str | Path, search_recursively: bool = False):
         self.path = self.check_path(path)
+        self.search_recursively = search_recursively
         self.predictions = self.get_predictions()
 
-    def check_path(self, path) -> Path:
-        p = Path(path)
+    def check_path(self, path: str | Path) -> Path:
+        if isinstance(path, str):
+            p = Path(path)
+        else:
+            p = path
         if not p.is_dir():
             raise Exception(f"Alphafold output directory is not a valid directory: {p}")
         return p
@@ -62,6 +66,8 @@ class AFOutput:
         # Colabfold
         if (self.path / "config.json").is_file():
             return self.get_colabfold_pred()
+        elif self.search_recursively and list(self.path.rglob("config.json")):
+            return self.get_pred_recursively(pred_type="colabfold")
         # AF2
         elif (self.path / "ranking_debug.json").is_file():
             return self.get_af2_pred()
@@ -73,9 +79,19 @@ class AFOutput:
                 f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
             )
 
+    def get_pred_recursively(self, pred_type:str) -> list[Prediction]:
+        predictions: list[Prediction] = []
+        for output in sorted(list(self.path.rglob("config.json"))):
+            print(output)
+            afoutput = AFOutput(path = output.parent)
+            predictions += afoutput.predictions
+
+        return predictions
+
+
     def get_colabfold_pred(self) -> list[Prediction]:
-        with open(self.path / "config.json", "r") as config_file:
-            config_data = json.load(config_file)
+        with open(self.path / "config.json", "rb") as config_file:
+            config_data = orjson.loads(config_file.read())
 
         af_version = config_data["model_type"]
         num_ranks = config_data["num_models"]
@@ -86,23 +102,23 @@ class AFOutput:
 
             with open(self.path / f"{pred_name}.a3m", "r") as msa_file:
                 msa_header_info = msa_file.readline().replace("#", "").split("\t")
-                msa_header_seq_lengths = [int(x) for x in msa_header_info[0].split(",")]
-                msa_header_seq_cardinalities = [
-                    int(x) for x in msa_header_info[1].split(",")
-                ]
+            msa_header_seq_lengths = [int(x) for x in msa_header_info[0].split(",")]
+            msa_header_seq_cardinalities = [
+                int(x) for x in msa_header_info[1].split(",")
+            ]
 
-                chain_lengths: list[int] = []
-                for seq_len, seq_cardinality in zip(
-                    msa_header_seq_lengths, msa_header_seq_cardinalities
-                ):
-                    chain_lengths += [seq_len] * seq_cardinality
+            chain_lengths: list[int] = []
+            for seq_len, seq_cardinality in zip(
+                msa_header_seq_lengths, msa_header_seq_cardinalities
+            ):
+                chain_lengths += [seq_len] * seq_cardinality
 
-                chain_ends: list[int] = []
-                for chain_len in chain_lengths:
-                    if chain_ends == []:
-                        chain_ends.append(chain_len)
-                    else:
-                        chain_ends.append(chain_len + chain_ends[-1])
+            chain_ends: list[int] = []
+            for chain_len in chain_lengths:
+                if chain_ends == []:
+                    chain_ends.append(chain_len)
+                else:
+                    chain_ends.append(chain_len + chain_ends[-1])
 
             model_unrel_paths = sorted(
                 self.path.glob(f"{pred_name}_unrelaxed_rank_*.pdb")
@@ -115,8 +131,8 @@ class AFOutput:
             for i, (model_unrel_path, score_path) in enumerate(
                 zip(model_unrel_paths, score_paths)
             ):
-                with open(score_path, "r") as score_file:
-                    score_data = json.load(score_file)
+                with open(score_path, "rb") as score_file:
+                    score_data = orjson.loads(score_file.read())
                 if i < config_data["num_relax"]:
                     model_rel_path = model_rel_paths[i]
 
@@ -177,11 +193,11 @@ class AFOutput:
         for i, (full_data_path, summary_data_path, model_path) in enumerate(
             zip(full_data_paths, summary_data_paths, model_paths)
         ):
-            with open(full_data_path, "r") as full_data_file, open(
-                summary_data_path, "r"
+            with open(full_data_path, "rb") as full_data_file, open(
+                summary_data_path, "rb"
             ) as summary_data_file:
-                full_data = json.load(full_data_file)
-                summary_data = json.load(summary_data_file)
+                full_data = orjson.load(full_data_file.read())
+                summary_data = orjson.load(summary_data_file.read())
 
             atom_chain_lengths: list[int] = []
             atom_id_old = ""
