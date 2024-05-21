@@ -49,15 +49,11 @@ class Prediction:
 class AFOutput:
 
     def __init__(self, path: str):
-        self.path: Path = self.check_path(path)
+        self.path = self.check_path(path)
         self.predictions = self.get_predictions()
 
-        self._colors = list(mcolors.TABLEAU_COLORS.values())
-        px = 1 / plt.rcParams["figure.dpi"]
-        self._figsize = (1618 * px, 1000 * px)
-
     def check_path(self, path) -> Path:
-        p: Path = Path(path)
+        p = Path(path)
         if not p.is_dir():
             raise Exception(f"Alphafold output directory is not a valid directory: {p}")
         return p
@@ -79,23 +75,19 @@ class AFOutput:
 
     def get_colabfold_pred(self) -> list[Prediction]:
         with open(self.path / "config.json", "r") as config_file:
-            config_data: dict = json.load(config_file)
+            config_data = json.load(config_file)
 
-        af_version: str = config_data["model_type"]
-        num_ranks: int = config_data["num_models"]
+        af_version = config_data["model_type"]
+        num_ranks = config_data["num_models"]
 
         preds: list[Prediction] = []
         for pred_done_path in self.path.glob("*.done.txt"):
-            pred_name: str = pred_done_path.name.split(".")[0]
+            pred_name = pred_done_path.name.split(".")[0]
 
             with open(self.path / f"{pred_name}.a3m", "r") as msa_file:
-                msa_header_info: list[str] = (
-                    msa_file.readline().replace("#", "").split("\t")
-                )
-                msa_header_seq_lengths: list[int] = [
-                    int(x) for x in msa_header_info[0].split(",")
-                ]
-                msa_header_seq_cardinalities: list[int] = [
+                msa_header_info = msa_file.readline().replace("#", "").split("\t")
+                msa_header_seq_lengths = [int(x) for x in msa_header_info[0].split(",")]
+                msa_header_seq_cardinalities = [
                     int(x) for x in msa_header_info[1].split(",")
                 ]
 
@@ -112,15 +104,11 @@ class AFOutput:
                     else:
                         chain_ends.append(chain_len + chain_ends[-1])
 
-            model_unrel_paths: list[Path] = sorted(
+            model_unrel_paths = sorted(
                 self.path.glob(f"{pred_name}_unrelaxed_rank_*.pdb")
             )
-            model_rel_paths: list[Path] = sorted(
-                self.path.glob(f"{pred_name}_relaxed_rank_*.pdb")
-            )
-            score_paths: list[Path] = sorted(
-                self.path.glob(f"{pred_name}_scores_rank_*.json")
-            )
+            model_rel_paths = sorted(self.path.glob(f"{pred_name}_relaxed_rank_*.pdb"))
+            score_paths = sorted(self.path.glob(f"{pred_name}_scores_rank_*.json"))
 
             models_rel: list[PredictedModel] = []
             models_unrel: list[PredictedModel] = []
@@ -128,9 +116,9 @@ class AFOutput:
                 zip(model_unrel_paths, score_paths)
             ):
                 with open(score_path, "r") as score_file:
-                    score_data: dict = json.load(score_file)
+                    score_data = json.load(score_file)
                 if i < config_data["num_relax"]:
-                    model_rel_path: Path = model_rel_paths[i]
+                    model_rel_path = model_rel_paths[i]
 
                     models_rel.append(
                         AF2Model(
@@ -179,12 +167,10 @@ class AFOutput:
         return []
 
     def get_af3_pred(self) -> list[Prediction]:
-        af_version: str = "alphafold3"
-        full_data_paths: list[Path] = sorted(self.path.glob("*_full_data*.json"))
-        summary_data_paths: list[Path] = sorted(
-            self.path.glob("*summary_confidences_*.json")
-        )
-        model_paths: list[Path] = sorted(self.path.glob("*.cif"))
+        af_version = "alphafold3"
+        full_data_paths = sorted(self.path.glob("*_full_data*.json"))
+        summary_data_paths = sorted(self.path.glob("*summary_confidences_*.json"))
+        model_paths = sorted(self.path.glob("*.cif"))
 
         pred_name = full_data_paths[0].name.split("_full_data_")[0]
         models: list[PredictedModel] = []
@@ -194,12 +180,12 @@ class AFOutput:
             with open(full_data_path, "r") as full_data_file, open(
                 summary_data_path, "r"
             ) as summary_data_file:
-                full_data: dict = json.load(full_data_file)
-                summary_data: dict = json.load(summary_data_file)
+                full_data = json.load(full_data_file)
+                summary_data = json.load(summary_data_file)
 
             atom_chain_lengths: list[int] = []
-            atom_id_old: str = ""
-            chain_length: int = 0
+            atom_id_old = ""
+            chain_length = 0
             for atom_id in full_data["atom_chain_ids"]:
                 if atom_id != atom_id_old:
                     if atom_id_old != "":
@@ -218,8 +204,8 @@ class AFOutput:
                     atom_chain_ends.append(chain_len + atom_chain_ends[-1])
 
             token_chain_lengths: list[int] = []
-            token_id_old: str = ""
-            chain_length: int = 0
+            token_id_old = ""
+            chain_length = 0
             for token_id in full_data["token_chain_ids"]:
                 if token_id != token_id_old:
                     if token_id_old != "":
@@ -266,9 +252,41 @@ class AFOutput:
             )
         ]
 
-    def plot_plddt(self, pred: Prediction) -> matplotlib.figure.Figure:
+    def plot_all_plddts(self) -> list[matplotlib.figure.Figure]:
+        figures: list[matplotlib.figure.Figure] = []
+        plotter = AFPlotter()
+        for pred in self.predictions:
+            figures.append(plotter.plot_plddt(pred))
+        return figures
 
-        fig = plt.figure(figsize=self._figsize)
+    def plot_all_paes(self) -> list[matplotlib.figure.Figure]:
+        figures: list[matplotlib.figure.Figure] = []
+        plotter = AFPlotter()
+        for pred in self.predictions:
+            figures.append(plotter.plot_pae(pred))
+        return figures
+
+
+class AFPlotter:
+    def __init__(
+        self,
+        figsize: tuple[float, float] | None = None,
+        colors: list[str] | None = None,
+    ):
+        if figsize:
+            self.figsize = figsize
+        else:
+            px = 1 / plt.rcParams["figure.dpi"]
+            self.figsize = (1618 * px, 1000 * px)
+
+        if colors:
+            self.colors = colors
+        else:
+            self.colors = list(mcolors.TABLEAU_COLORS.values())
+
+    def plot_plddt(self, pred) -> matplotlib.figure.Figure:
+
+        fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
         ax.set(ylabel="pLDDT", ylim=(0, 100))
 
@@ -280,12 +298,12 @@ class AFOutput:
 
         if pred.af_version == "alphafold3":
             ax.set_xlabel("Atom")
-            for model in pred.models_unrelaxed:
+            for model in reversed(pred.models_unrelaxed):
                 assert isinstance(model, AF3Model)
                 ax.plot(
                     range(1, len(model.atom_plddts) + 1),
                     model.atom_plddts,
-                    color=self._colors[model.rank - 1 % len(self._colors)],
+                    color=self.colors[model.rank - 1 % len(self.colors)],
                     label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
 
@@ -299,12 +317,12 @@ class AFOutput:
 
         elif "alphafold2" in pred.af_version:
             ax.set_xlabel("Residue")
-            for model in pred.models_unrelaxed:
+            for model in reversed(pred.models_unrelaxed):
                 assert isinstance(model, AF2Model)
                 ax.plot(
                     range(1, len(model.residue_plddts) + 1),
                     model.residue_plddts,
-                    color=self._colors[model.rank - 1 % len(self._colors)],
+                    color=self.colors[model.rank - 1 % len(self.colors)],
                     label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
 
@@ -315,15 +333,9 @@ class AFOutput:
         fig.tight_layout()
         return fig
 
-    def plot_all_plddts(self) -> list[matplotlib.figure.Figure]:
-        figures: list[matplotlib.figure.Figure] = []
-        for pred in self.predictions:
-            figures.append(self.plot_plddt(pred))
-        return figures
-
     def plot_pae(self, pred: Prediction) -> matplotlib.figure.Figure:
 
-        fig = plt.figure(figsize=self._figsize)
+        fig = plt.figure(figsize=self.figsize)
         cols = len(pred.models_unrelaxed)
         for i, model in enumerate(pred.models_unrelaxed):
             ax = fig.add_subplot(1, cols, i + 1)
@@ -365,9 +377,3 @@ class AFOutput:
             ax.tick_params(axis="x", labelrotation=90)
         fig.tight_layout()
         return fig
-
-    def plot_all_paes(self) -> list[matplotlib.figure.Figure]:
-        figures: list[matplotlib.figure.Figure] = []
-        for pred in self.predictions:
-            figures.append(self.plot_pae(pred))
-        return figures

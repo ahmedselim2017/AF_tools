@@ -3,16 +3,14 @@ import sys
 import pathlib
 
 
+from .analyze import AFOutput, AFPlotter
+
+
 def get_args() -> tuple:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--af_dir",
-                        help="Output directory of Alphafold",
-                        required=True)
-    parser.add_argument("--fig_dir",
-                        help="Directory for figure outputs",
-                        required=True)
-    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--af_dir", help="Output directory of Alphafold", required=True)
+    parser.add_argument("--fig_dir", help="Directory for figure outputs", required=True)
 
     args = parser.parse_args()
 
@@ -22,7 +20,6 @@ def get_args() -> tuple:
 def cli() -> None:
     dir_af, dir_fig, is_verbose = get_args()
 
-    path_af = pathlib.Path(dir_af)
     path_fig = pathlib.Path(dir_fig)
 
     if path_fig.is_file():
@@ -34,3 +31,15 @@ def cli() -> None:
         print(msg)
 
         path_fig.mkdir(parents=True)
+
+    afoutput = AFOutput(dir_af)
+    afplotter = AFPlotter()
+
+    for pred in afoutput.predictions:
+        fig_plddt = afplotter.plot_plddt(pred)
+        fig_plddt.savefig(path_fig / f"{pred.name}_plddt.png", bbox_inches="tight")
+        fig_plddt.savefig(path_fig / f"{pred.name}_plddt.pdf", bbox_inches="tight")
+
+        fig_pae = afplotter.plot_pae(pred)
+        fig_pae.savefig(path_fig / f"{pred.name}_pae.png", bbox_inches="tight")
+        fig_pae.savefig(path_fig / f"{pred.name}_pae.pdf", bbox_inches="tight")
