@@ -94,7 +94,7 @@ class AFOutput:
 
             with open(self.path / f"{pred_name}.a3m", "r") as msa_file:
                 msa_header_info: list[str] = (
-                    msa_file.read().replace("#", "").split("\t")
+                    msa_file.readline().replace("#", "").split("\t")
                 )
                 msa_header_seq_lengths: list[int] = [
                     int(x) for x in msa_header_info[0].split(",")
@@ -181,7 +181,7 @@ class AFOutput:
         summary_data_paths: list[Path] = sorted(
             self.path.glob("*summary_confidences_*.json")
         )
-        model_paths: list[Path] = sorted(self.path.glob("_model_*_.cif"))
+        model_paths: list[Path] = sorted(self.path.glob("*.cif"))
 
         pred_name = full_data_paths[0].name.split("_full_data_")[0]
         models: list[PredictedModel] = []
