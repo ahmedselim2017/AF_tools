@@ -27,7 +27,7 @@ class PredictedModel:
 @dataclass(frozen=True, kw_only=True)
 class AF2Model(PredictedModel):
     residue_plddts: list[float]
-    chain_lengths: list[int]
+    chain_ends: list[int]
     is_relaxed: bool
 
 
@@ -35,9 +35,9 @@ class AF2Model(PredictedModel):
 class AF3Model(PredictedModel):
     atom_plddts: list[float]
     atom_chain_ids: list[int]
-    atom_chain_lengths: list[int]
+    atom_chain_ends: list[int]
     token_chain_ids: list[int]
-    token_chain_lengths: list[int]
+    token_chain_ends: list[int]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -109,6 +109,13 @@ class AFOutput:
                 ):
                     chain_lengths += [seq_len] * seq_cardinality
 
+                chain_ends = []
+                for chain_len in chain_lengths:
+                    if chain_ends == []:
+                        chain_ends.append(chain_len)
+                    else:
+                        chain_ends.append(chain_len + chain_ends[-1])
+
             model_unrel_paths: list[Path] = sorted(
                 self.path.glob(f"{pred_name}_unrelaxed_rank_*.pdb")
             )
@@ -141,7 +148,7 @@ class AFOutput:
                             pae=score_data["pae"],
                             af_version=af_version,
                             residue_plddts=score_data["plddt"],
-                            chain_lengths=chain_lengths,
+                            chain_ends=chain_ends,
                             is_relaxed=True,
                         )
                     )
@@ -156,7 +163,7 @@ class AFOutput:
                         pae=score_data["pae"],
                         af_version=af_version,
                         residue_plddts=score_data["plddt"],
-                        chain_lengths=chain_lengths,
+                        chain_ends=chain_ends,
                         is_relaxed=False,
                     )
                 )
@@ -207,6 +214,13 @@ class AFOutput:
                 atom_id_old = atom_id
             atom_chain_lengths.append(chain_length)
 
+            atom_chain_ends = []
+            for chain_len in atom_chain_lengths:
+                if atom_chain_ends == []:
+                    atom_chain_ends.append(chain_len)
+                else:
+                    atom_chain_ends.append(chain_len + atom_chain_ends[-1])
+
             token_chain_lengths: list[int] = []
             token_id_old: str = ""
             chain_length: int = 0
@@ -219,6 +233,13 @@ class AFOutput:
                     chain_length += 1
                 token_id_old = token_id
             token_chain_lengths.append(chain_length)
+
+            token_chain_ends = []
+            for chain_len in token_chain_lengths:
+                if token_chain_ends == []:
+                    token_chain_ends.append(chain_len)
+                else:
+                    token_chain_ends.append(chain_len + token_chain_ends[-1])
 
             models.append(
                 AF3Model(
@@ -233,9 +254,9 @@ class AFOutput:
                     af_version=af_version,
                     atom_plddts=full_data["atom_plddts"],
                     atom_chain_ids=full_data["atom_chain_ids"],
-                    atom_chain_lengths=atom_chain_lengths,
+                    atom_chain_ends=atom_chain_ends,
                     token_chain_ids=full_data["token_chain_ids"],
-                    token_chain_lengths=token_chain_lengths,
+                    token_chain_ends=token_chain_ends,
                 )
             )
         return [
@@ -249,9 +270,7 @@ class AFOutput:
             )
         ]
 
-    def plot_plddt(
-        self, pred: Prediction, is_relaxed_af2: bool = True
-    ) -> matplotlib.figure.Figure:
+    def plot_plddt(self, pred: Prediction) -> matplotlib.figure.Figure:
 
         fig = plt.figure(figsize=self._figsize)
         ax = plt.axes()
@@ -273,6 +292,16 @@ class AFOutput:
                     color=self._colors[model.rank - 1 % len(self._colors)],
                     label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
+
+                if len(model.atom_chain_ends) > 1:
+                    print("x", model.atom_chain_ends)
+                    ax.vlines(
+                        model.atom_chain_ends[:-1],
+                        ymin=0,
+                        ymax=100,
+                        color="black",
+                    )
+
         elif "alphafold2" in pred.af_version:
             ax.set_xlabel("Residue")
             for model in pred.models_unrelaxed:
@@ -284,6 +313,10 @@ class AFOutput:
                     label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
 
+                if len(model.chain_ends) > 1:
+                    print("x", model.chain_ends)
+                    ax.vlines(model.chain_ends[:-1], ymin=0, ymax=100, color="black")
+
         fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
         fig.tight_layout()
         return fig
@@ -293,7 +326,7 @@ class AFOutput:
     ) -> list[matplotlib.figure.Figure]:
         figures: list[matplotlib.figure.Figure] = []
         for pred in self.predictions:
-            figures.append(self.plot_plddt(pred, is_relaxed_af2))
+            figures.append(self.plot_plddt(pred))
         return figures
 
     def plot_pae(
