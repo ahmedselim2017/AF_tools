@@ -1,17 +1,17 @@
 from dataclasses import dataclass
+import multiprocessing
+
+import orjson  # type:ignore
+from pathlib import Path  # type:ignore
+import numpy as np  # type:ignore
+from numpy.typing import NDArray  # type:ignore
+
+import matplotlib.pyplot as plt  # type:ignore
+import matplotlib.colors as mcolors  # type:ignore
+import matplotlib.figure  # type:ignore
 
 
-import orjson
-from pathlib import Path
-import numpy as np
-from numpy.typing import NDArray
-
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import matplotlib.figure
-
-
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class PredictedModel:
     name: str
     model_path: Path
@@ -23,14 +23,14 @@ class PredictedModel:
     af_version: str
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class AF2Model(PredictedModel):
     residue_plddts: NDArray
     chain_ends: list[int]
     relaxed_pdb_path: Path | None
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class AF3Model(PredictedModel):
     atom_plddts: NDArray
     atom_chain_ends: list[int]
@@ -48,9 +48,14 @@ class Prediction:
 
 class AFOutput:
 
-    def __init__(self, path: str | Path, search_recursively: bool = False):
+    def __init__(self,
+                 path: str | Path,
+                 search_recursively: bool = False,
+                 process_number: int = 1):
         self.path = self.check_path(path)
         self.search_recursively = search_recursively
+        self.process_number = process_number
+
         self.predictions = self.get_predictions()
 
     def check_path(self, path: str | Path) -> Path:
@@ -59,15 +64,17 @@ class AFOutput:
         else:
             p = path
         if not p.is_dir():
-            raise Exception(f"Alphafold output directory is not a valid directory: {p}")
+            raise Exception(
+                f"Alphafold output directory is not a valid directory: {p}")
         return p
 
     def get_predictions(self) -> list[Prediction]:
+        # Only works for colabfold for now
+        if self.search_recursively and list(self.path.rglob("config.json")):
+            return self.get_pred_recursively()
         # Colabfold
-        if (self.path / "config.json").is_file():
+        elif (self.path / "config.json").is_file():
             return self.get_colabfold_pred()
-        elif self.search_recursively and list(self.path.rglob("config.json")):
-            return self.get_pred_recursively(pred_type="colabfold")
         # AF2
         elif (self.path / "ranking_debug.json").is_file():
             return self.get_af2_pred()
@@ -79,15 +86,18 @@ class AFOutput:
                 f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
             )
 
-    def get_pred_recursively(self, pred_type:str) -> list[Prediction]:
-        predictions: list[Prediction] = []
-        for output in self.path.rglob("config.json"):
-            print(output)
-            afoutput = AFOutput(path = output.parent)
-            predictions += afoutput.predictions
+    def get_pred_worker(self, path: Path):
+        afoutput = AFOutput(path=path)
+        return afoutput.predictions
+
+    def get_pred_recursively(self) -> list[Prediction]:
+        outputs = [x.parent for x in list(self.path.rglob("config.json"))]
+        with multiprocessing.Pool(processes=self.process_number) as pool:
+            results = pool.map(self.get_pred_worker, outputs)
+        predictions: list[Prediction] = [j for i in results
+                                         for j in i]  # flatten the results
 
         return predictions
-
 
     def get_colabfold_pred(self) -> list[Prediction]:
         with open(self.path / "config.json", "rb") as config_file:
@@ -101,16 +111,18 @@ class AFOutput:
             pred_name = pred_done_path.name.split(".")[0]
 
             with open(self.path / f"{pred_name}.a3m", "r") as msa_file:
-                msa_header_info = msa_file.readline().replace("#", "").split("\t")
-            msa_header_seq_lengths = [int(x) for x in msa_header_info[0].split(",")]
+                msa_header_info = msa_file.readline().replace("#",
+                                                              "").split("\t")
+            msa_header_seq_lengths = [
+                int(x) for x in msa_header_info[0].split(",")
+            ]
             msa_header_seq_cardinalities = [
                 int(x) for x in msa_header_info[1].split(",")
             ]
 
             chain_lengths: list[int] = []
-            for seq_len, seq_cardinality in zip(
-                msa_header_seq_lengths, msa_header_seq_cardinalities
-            ):
+            for seq_len, seq_cardinality in zip(msa_header_seq_lengths,
+                                                msa_header_seq_cardinalities):
                 chain_lengths += [seq_len] * seq_cardinality
 
             chain_ends: list[int] = []
@@ -121,15 +133,15 @@ class AFOutput:
                     chain_ends.append(chain_len + chain_ends[-1])
 
             model_unrel_paths = sorted(
-                self.path.glob(f"{pred_name}_unrelaxed_rank_*.pdb")
-            )
-            model_rel_paths = sorted(self.path.glob(f"{pred_name}_relaxed_rank_*.pdb"))
-            score_paths = sorted(self.path.glob(f"{pred_name}_scores_rank_*.json"))
+                self.path.glob(f"{pred_name}_unrelaxed_rank_*.pdb"))
+            model_rel_paths = sorted(
+                self.path.glob(f"{pred_name}_relaxed_rank_*.pdb"))
+            score_paths = sorted(
+                self.path.glob(f"{pred_name}_scores_rank_*.json"))
 
             models: list[PredictedModel] = []
             for i, (model_unrel_path, score_path) in enumerate(
-                zip(model_unrel_paths, score_paths)
-            ):
+                    zip(model_unrel_paths, score_paths)):
                 model_rel_path = None
                 if i < config_data["num_relax"]:
                     model_rel_path = model_rel_paths[i]
@@ -152,8 +164,7 @@ class AFOutput:
                         af_version=af_version,
                         residue_plddts=plddt,
                         chain_ends=chain_ends,
-                    )
-                )
+                    ))
             preds.append(
                 Prediction(
                     name=pred_name,
@@ -161,8 +172,7 @@ class AFOutput:
                     af_version=af_version,
                     models=models,
                     is_colabfold=True,
-                )
-            )
+                ))
         return preds
 
     def get_af2_pred(self) -> list[Prediction]:
@@ -171,19 +181,19 @@ class AFOutput:
     def get_af3_pred(self) -> list[Prediction]:
         af_version = "alphafold3"
         full_data_paths = sorted(self.path.glob("*_full_data*.json"))
-        summary_data_paths = sorted(self.path.glob("*summary_confidences_*.json"))
+        summary_data_paths = sorted(
+            self.path.glob("*summary_confidences_*.json"))
         model_paths = sorted(self.path.glob("*.cif"))
 
         pred_name = full_data_paths[0].name.split("_full_data_")[0]
         models: list[PredictedModel] = []
         for i, (full_data_path, summary_data_path, model_path) in enumerate(
-            zip(full_data_paths, summary_data_paths, model_paths)
-        ):
-            with open(full_data_path, "rb") as full_data_file, open(
-                summary_data_path, "rb"
-            ) as summary_data_file:
-                full_data = orjson.load(full_data_file.read())
-                summary_data = orjson.load(summary_data_file.read())
+                zip(full_data_paths, summary_data_paths, model_paths)):
+            with open(full_data_path,
+                      "rb") as full_data_file, open(summary_data_path,
+                                                    "rb") as summary_data_file:
+                full_data = orjson.loads(full_data_file.read())
+                summary_data = orjson.loads(summary_data_file.read())
 
             atom_chain_lengths: list[int] = []
             atom_id_old = ""
@@ -231,16 +241,15 @@ class AFOutput:
                     model_path=model_path,
                     json_path=full_data_path,
                     rank=i + 1,
-                    mean_plddt=sum(full_data["atom_plddts"])
-                    / len(full_data["atom_plddts"]),
+                    mean_plddt=sum(full_data["atom_plddts"]) /
+                    len(full_data["atom_plddts"]),
                     ptm=summary_data["ptm"],
                     pae=full_data["pae"],
                     af_version=af_version,
                     atom_plddts=full_data["atom_plddts"],
                     atom_chain_ends=atom_chain_ends,
                     token_chain_ends=token_chain_ends,
-                )
-            )
+                ))
         return [
             Prediction(
                 name=pred_name,
@@ -267,6 +276,7 @@ class AFOutput:
 
 
 class AFPlotter:
+
     def __init__(
         self,
         figsize: tuple[float, float] | None = None,
@@ -300,10 +310,12 @@ class AFPlotter:
             for model in reversed(pred.models):
                 assert isinstance(model, AF3Model)
                 ax.plot(
-                    range(1, len(model.atom_plddts) + 1),
+                    range(1,
+                          len(model.atom_plddts) + 1),
                     model.atom_plddts,
                     color=self.colors[model.rank - 1 % len(self.colors)],
-                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
+                    label=
+                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
 
                 if len(model.atom_chain_ends) > 1:
@@ -319,14 +331,19 @@ class AFPlotter:
             for model in reversed(pred.models):
                 assert isinstance(model, AF2Model)
                 ax.plot(
-                    range(1, len(model.residue_plddts) + 1),
+                    range(1,
+                          len(model.residue_plddts) + 1),
                     model.residue_plddts,
                     color=self.colors[model.rank - 1 % len(self.colors)],
-                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
+                    label=
+                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
 
                 if len(model.chain_ends) > 1:
-                    ax.vlines(model.chain_ends[:-1], ymin=0, ymax=100, color="black")
+                    ax.vlines(model.chain_ends[:-1],
+                              ymin=0,
+                              ymax=100,
+                              color="black")
 
         fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
         fig.tight_layout()
@@ -341,12 +358,16 @@ class AFPlotter:
             ends: list[int] = []
 
             if pred.af_version == "alphafold3":
-                ax.set(ylabel="Token", xlabel="Token", title=f"Rank {model.rank}")
+                ax.set(ylabel="Token",
+                       xlabel="Token",
+                       title=f"Rank {model.rank}")
                 assert isinstance(model, AF3Model)
                 ends = model.token_chain_ends
 
             elif "alphafold2" in pred.af_version:
-                ax.set(ylabel="Residue", xlabel="Residue", title=f"Rank {model.rank}")
+                ax.set(ylabel="Residue",
+                       xlabel="Residue",
+                       title=f"Rank {model.rank}")
                 assert isinstance(model, AF2Model)
                 ends = model.chain_ends
 
