@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
+import typing
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -25,7 +26,7 @@ class PredictedModel:
 
 @dataclass(frozen=True, kw_only=True)
 class AF2Model(PredictedModel):
-    residue_plddt: list[float]
+    residue_plddts: list[float]
     chain_lengths: list[int]
     is_relaxed: bool
 
@@ -33,7 +34,10 @@ class AF2Model(PredictedModel):
 @dataclass(frozen=True, kw_only=True)
 class AF3Model(PredictedModel):
     atom_plddts: list[float]
-    chain_lengths: list[int]
+    atom_chain_ids: list[int]
+    atom_chain_lengths: list[int]
+    token_chain_ids: list[int]
+    token_chain_lengths: list[int]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -136,7 +140,7 @@ class AFOutput:
                             ptm=score_data["ptm"],
                             pae=score_data["pae"],
                             af_version=af_version,
-                            residue_plddt=score_data["plddt"],
+                            residue_plddts=score_data["plddt"],
                             chain_lengths=chain_lengths,
                             is_relaxed=True,
                         )
@@ -151,7 +155,7 @@ class AFOutput:
                         ptm=score_data["ptm"],
                         pae=score_data["pae"],
                         af_version=af_version,
-                        residue_plddt=score_data["plddt"],
+                        residue_plddts=score_data["plddt"],
                         chain_lengths=chain_lengths,
                         is_relaxed=False,
                     )
@@ -172,22 +176,86 @@ class AFOutput:
         return []
 
     def get_af3_pred(self) -> list[Prediction]:
-        return []
+        af_version: str = "alphafold3"
+        full_data_paths: list[Path] = sorted(self.path.glob("*_full_data*.json"))
+        summary_data_paths: list[Path] = sorted(
+            self.path.glob("*summary_confidences_*.json")
+        )
+        model_paths: list[Path] = sorted(self.path.glob("_model_*_.cif"))
+
+        pred_name = full_data_paths[0].name.split("_full_data_")[0]
+        models: list[PredictedModel] = []
+        for i, (full_data_path, summary_data_path, model_path) in enumerate(
+            zip(full_data_paths, summary_data_paths, model_paths)
+        ):
+            with open(full_data_path, "r") as full_data_file, open(
+                summary_data_path, "r"
+            ) as summary_data_file:
+                full_data: dict = json.load(full_data_file)
+                summary_data: dict = json.load(summary_data_file)
+
+            atom_chain_lengths: list[int] = []
+            atom_id_old: str = ""
+            chain_length: int = 0
+            for atom_id in full_data["atom_chain_ids"]:
+                if atom_id != atom_id_old:
+                    if atom_id_old != "":
+                        atom_chain_lengths.append(chain_length)
+                    chain_length = 1
+                else:
+                    chain_length += 1
+                atom_id_old = atom_id
+            atom_chain_lengths.append(chain_length)
+
+            token_chain_lengths: list[int] = []
+            token_id_old: str = ""
+            chain_length: int = 0
+            for token_id in full_data["token_chain_ids"]:
+                if token_id != token_id_old:
+                    if token_id_old != "":
+                        token_chain_lengths.append(chain_length)
+                    chain_length = 1
+                else:
+                    chain_length += 1
+                token_id_old = token_id
+            token_chain_lengths.append(chain_length)
+
+            models.append(
+                AF3Model(
+                    name=pred_name,
+                    model_path=model_path,
+                    json_path=full_data_path,
+                    rank=i + 1,
+                    mean_plddt=sum(full_data["atom_plddts"])
+                    / len(full_data["atom_plddts"]),
+                    ptm=summary_data["ptm"],
+                    pae=full_data["pae"],
+                    af_version=af_version,
+                    atom_plddts=full_data["atom_plddts"],
+                    atom_chain_ids=full_data["atom_chain_ids"],
+                    atom_chain_lengths=atom_chain_lengths,
+                    token_chain_ids=full_data["token_chain_ids"],
+                    token_chain_lengths=token_chain_lengths,
+                )
+            )
+        return [
+            Prediction(
+                name=pred_name,
+                num_ranks=len(models),
+                af_version=af_version,
+                models_relaxed=None,
+                models_unrelaxed=models,
+                is_colabfold=False,
+            )
+        ]
 
     def plot_plddt(
         self, pred: Prediction, is_relaxed_af2: bool = True
     ) -> matplotlib.figure.Figure:
-        if not is_relaxed_af2 or pred.af_version == 3:
-            assert pred.models_unrelaxed
-            models: list[PredictedModel] = pred.models_unrelaxed
-        else:
-            assert pred.models_relaxed
-            models: list[PredictedModel] = pred.models_relaxed
 
         fig = plt.figure(figsize=self._figsize)
         ax = plt.axes()
         ax.set(ylabel="pLDDT", ylim=(0, 100))
-        ax.set_xlabel("Residue") if pred.af_version == 2 else ax.set_xlabel("Atom")
 
         # AF pLDDT colors
         ax.axhspan(90, 100, facecolor="#106DFF", alpha=0.15)
@@ -195,22 +263,27 @@ class AFOutput:
         ax.axhspan(50, 70, facecolor="#F6ED12", alpha=0.15)
         ax.axhspan(00, 50, facecolor="#EF821E", alpha=0.15)
 
-        for model in models:
-            if model.af_version == 2:
+        if pred.af_version == "alphafold3":
+            ax.set_xlabel("Atom")
+            for model in pred.models_unrelaxed:
+                assert isinstance(model, AF3Model)
                 ax.plot(
-                    range(1, len(model.residue_pLDDT) + 1),  # type:ignore
-                    model.residue_pLDDT,
+                    range(1, len(model.atom_plddts) + 1),
+                    model.atom_plddts,
                     color=self._colors[model.rank - 1 % len(self._colors)],
-                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_pLDDT:.3f}",
+                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
-            # if AF3
-            elif model.af_version == 3:
+        elif "alphafold2" in pred.af_version:
+            ax.set_xlabel("Residue")
+            for model in pred.models_unrelaxed:
+                assert isinstance(model, AF2Model)
                 ax.plot(
-                    range(1, len(model.atom_pLDDT) + 1),  # type:ignore
-                    model.atom_pLDDT,
+                    range(1, len(model.residue_plddts) + 1),
+                    model.residue_plddts,
                     color=self._colors[model.rank - 1 % len(self._colors)],
-                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_pLDDT:.3f}",
+                    label=f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
                 )
+
         fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
         fig.tight_layout()
         return fig
