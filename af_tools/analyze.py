@@ -69,18 +69,18 @@ class AFOutput:
         return p
 
     def get_predictions(self) -> list[Prediction]:
-        # Only works for colabfold for now
-        if self.search_recursively and list(self.path.rglob("config.json")):
-            return self.get_pred_recursively()
         # Colabfold
-        elif (self.path / "config.json").is_file():
+        if (self.path / "config.json").is_file():
             return self.get_colabfold_pred()
         # AF2
         elif (self.path / "ranking_debug.json").is_file():
             return self.get_af2_pred()
         # AF3
-        elif self.path.glob("*summary_confidences_*.json"):
+        elif any(True for _ in self.path.glob("*summary_confidences_*.json")):
             return self.get_af3_pred()
+        # Only works for colabfold for now
+        elif len(list(self.path.rglob("config.json"))) > 1:
+            return self.get_pred_recursively()
         else:
             raise Exception(
                 f"Given output directory does not contains Alphafold 2 or Alphafold 3 outputs: {self.path}"
@@ -274,6 +274,21 @@ class AFOutput:
             figures.append(plotter.plot_pae(pred))
         return figures
 
+    def plot_plddt_hist(self,
+                        use_color: bool = True,
+                        draw_mean: bool = True) -> matplotlib.figure.Figure:
+        plotter = AFPlotter()
+
+        predicted_models: list[PredictedModel] = []
+        for pred in self.predictions:
+            predicted_models += pred.models
+
+        fig = plotter.plot_plddt_hist(predicted_models=predicted_models,
+                                      use_color=use_color,
+                                      draw_mean=draw_mean)
+
+        return fig
+
 
 class AFPlotter:
 
@@ -293,6 +308,8 @@ class AFPlotter:
         else:
             self.colors = list(mcolors.TABLEAU_COLORS.values())
 
+        self.afcolors = ["#FF7D45", "#FFDB13", "#65CBF3", "#0053D6"]
+
     def plot_plddt(self, pred) -> matplotlib.figure.Figure:
 
         fig = plt.figure(figsize=self.figsize)
@@ -300,10 +317,10 @@ class AFPlotter:
         ax.set(ylabel="pLDDT", ylim=(0, 100))
 
         # AF pLDDT colors
-        ax.axhspan(90, 100, facecolor="#106DFF", alpha=0.15)
-        ax.axhspan(70, 90, facecolor="#10CFF1", alpha=0.15)
-        ax.axhspan(50, 70, facecolor="#F6ED12", alpha=0.15)
-        ax.axhspan(00, 50, facecolor="#EF821E", alpha=0.15)
+        ax.axhspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
+        ax.axhspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)
+        ax.axhspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
+        ax.axhspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
 
         if pred.af_version == "alphafold3":
             ax.set_xlabel("Atom")
@@ -395,5 +412,41 @@ class AFPlotter:
                 )
 
             ax.tick_params(axis="x", labelrotation=90)
+        fig.tight_layout()
+        return fig
+
+    def plot_plddt_hist(self,
+                        predicted_models: list[PredictedModel],
+                        use_color: bool = True,
+                        draw_mean: bool = True) -> matplotlib.figure.Figure:
+
+        mean_plddts = np.zeros(len(predicted_models))
+        for i, pred in enumerate(predicted_models):
+            mean_plddts[i] = pred.mean_plddt
+
+        fig = plt.figure(figsize=self.figsize)
+        ax = plt.axes()
+        ax.set(xlabel="pLDDT", ylabel="Count", xlim=(0, 100))
+
+        if use_color:
+            ax.axvspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
+            ax.axvspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)
+            ax.axvspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
+            ax.axvspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
+
+        if draw_mean:
+            mean = mean_plddts.mean()
+            ax.axvline(mean,
+                       color="k",
+                       linestyle="dashed",
+                       label=f"Mean: {mean:.3f}")
+
+        ax.hist(mean_plddts,
+                bins=30,
+                color="tab:blue",
+                alpha=0.75,
+                edgecolor="k")
+
+        ax.legend()
         fig.tight_layout()
         return fig
