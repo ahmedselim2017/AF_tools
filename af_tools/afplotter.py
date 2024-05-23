@@ -41,19 +41,19 @@ class AFPlotter:
 
         if isinstance(prediction, AF3Prediction):
             ax.set_xlabel("Atom")
-            for model in reversed(prediction.models):
+            for af3model in reversed(prediction.models):
                 ax.plot(
                     range(1,
-                          len(model.atom_plddts) + 1),
-                    model.atom_plddts,
-                    color=self.colors[model.rank - 1 % len(self.colors)],
+                          len(af3model.atom_plddts) + 1),
+                    af3model.atom_plddts,
+                    color=self.colors[af3model.rank - 1 % len(self.colors)],
                     label=
-                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
+                    f"{af3model.name} Rank {af3model.rank} Mean pLDDT {af3model.mean_plddt:.3f}",
                 )
 
-                if len(model.atom_chain_ends) > 1:
+                if len(af3model.atom_chain_ends) > 1:
                     ax.vlines(
-                        model.atom_chain_ends[:-1],
+                        af3model.atom_chain_ends[:-1],
                         ymin=0,
                         ymax=100,
                         color="black",
@@ -61,24 +61,23 @@ class AFPlotter:
 
         elif isinstance(prediction, AF2Prediction):
             ax.set_xlabel("Residue")
-            for model in reversed(prediction.models):
-                assert isinstance(model, AF2Model)
+            for af2model in reversed(prediction.models):
                 ax.plot(
                     range(1,
-                          len(model.residue_plddts) + 1),
-                    model.residue_plddts,
-                    color=self.colors[model.rank - 1 % len(self.colors)],
+                          len(af2model.residue_plddts) + 1),
+                    af2model.residue_plddts,
+                    color=self.colors[af2model.rank - 1 % len(self.colors)],
                     label=
-                    f"{model.name} Rank {model.rank} Mean pLDDT {model.mean_plddt:.3f}",
+                    f"{af2model.name} Rank {af2model.rank} Mean pLDDT {af2model.mean_plddt:.3f}",
                 )
 
-                if len(model.chain_ends) > 1:
-                    ax.vlines(model.chain_ends[:-1],
+                if len(af2model.chain_ends) > 1:
+                    ax.vlines(af2model.chain_ends[:-1],
                               ymin=0,
                               ymax=100,
                               color="black")
 
-        fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07))
+        fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07), reverse=True)
         fig.tight_layout()
         return fig
 
