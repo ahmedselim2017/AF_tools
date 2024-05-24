@@ -3,6 +3,16 @@ import pytest
 from af_tools.afparser import AFParser
 
 
+def test_af3_hist() -> None:
+    af3output = AFParser("./tests/data/af3_recursive",
+                         process_number=12).get_output()
+    fig = af3output.plot_plddt_hist()
+
+    fig.show()
+    input()
+    exit()
+
+
 def test_invalid_path() -> None:
     with pytest.raises(Exception) as e_info:
         AFParser("./tests/data/wrongpath").get_output()
@@ -26,8 +36,8 @@ def test_colabfold_pred_plddt() -> None:
     colabfold_output = AFParser("./tests/data/colabfold").get_output()
     fig = colabfold_output.plot_all_plddts()[0]
 
-    fig.show()
-    input()
+    # fig.show()
+    # input()
 
 
 def test_colabfold_multimer_pred_plddt() -> None:
@@ -83,5 +93,5 @@ def test_colabfold_hist() -> None:
                          process_number=12).get_output()
     fig = af2output.plot_plddt_hist()
 
-    fig.show()
-    input()
+    # fig.show()
+    # input()

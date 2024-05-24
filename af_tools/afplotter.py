@@ -129,10 +129,13 @@ class AFPlotter:
         fig.tight_layout()
         return fig
 
-    def plot_plddt_hist(self,
-                        predicted_models: list[AFModel],
-                        use_color: bool = True,
-                        draw_mean: bool = True) -> matplotlib.figure.Figure:
+    def plot_plddt_hist(
+            self,
+            predicted_models: list[AFModel],
+            use_color: bool = True,
+            draw_mean: bool = True,
+            xlim: tuple[float, float] | None = None
+    ) -> matplotlib.figure.Figure:
 
         mean_plddts = np.zeros(len(predicted_models))
         for i, pred in enumerate(predicted_models):
@@ -140,13 +143,14 @@ class AFPlotter:
 
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
-        ax.set(xlabel="pLDDT", ylabel="Count", xlim=(0, 100))
 
-        if use_color:
-            ax.axvspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
-            ax.axvspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)
-            ax.axvspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
-            ax.axvspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
+        ax.hist(mean_plddts,
+                bins=np.histogram_bin_edges(mean_plddts),
+                color="tab:blue",
+                alpha=0.75,
+                edgecolor="k")
+
+        ax.set(xlabel="pLDDT", ylabel="Count", xlim=xlim)
 
         if draw_mean:
             mean = mean_plddts.mean()
@@ -154,12 +158,11 @@ class AFPlotter:
                        color="k",
                        linestyle="dashed",
                        label=f"Mean: {mean:.3f}")
-
-        ax.hist(mean_plddts,
-                bins=30,
-                color="tab:blue",
-                alpha=0.75,
-                edgecolor="k")
+        if use_color:
+            ax.axvspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
+            ax.axvspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)
+            ax.axvspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
+            ax.axvspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
 
         ax.legend()
         fig.tight_layout()
