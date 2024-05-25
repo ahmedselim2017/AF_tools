@@ -41,6 +41,7 @@ class AF2Output(AFOutput):
 
             predictions = [j for i in results
                            for j in i]  # flatten the results
+            print("loaded files")
         else:
             with open(self.path / "config.json", "rb") as config_file:
                 config_data = orjson.loads(config_file.read())

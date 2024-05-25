@@ -3,6 +3,7 @@ import matplotlib.colors as mcolors
 import matplotlib.figure
 
 import numpy as np
+from numpy.typing import NDArray
 
 from af_tools.output_types import AFModel, AFPrediction, AF2Model, AF2Prediction, AF3Model, AF3Prediction
 
@@ -165,5 +166,22 @@ class AFPlotter:
             ax.axvspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
 
         ax.legend()
+        fig.tight_layout()
+        return fig
+
+    def plot_rmsd_plddt(self, plddts: list[float],
+                        rmsds: NDArray) -> matplotlib.figure.Figure:
+        fig = plt.figure(figsize=self.figsize)
+        ax = plt.axes()
+
+        ax.set(xlabel="RMSD", ylabel="pLDDT", ylim=(0, 100))
+
+        ax.axhspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
+        ax.axhspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)
+        ax.axhspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
+        ax.axhspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
+
+        ax.scatter(rmsds, plddts, alpha=0.3)
+
         fig.tight_layout()
         return fig

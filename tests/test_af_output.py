@@ -20,15 +20,3 @@ def test_af3_pred_detection() -> None:
     assert af3output.predictions[0].num_ranks == 5
     assert af3output.predictions[0].af_version == "alphafold3"
     assert af3output.predictions[0].models != None
-
-
-def test_af2_rmsd() -> None:
-    af3output = AFParser("./tests/data/colabfold_recursive",
-                         process_number=12).get_output()
-    af3output.calculate_rmsds(0, 0)
-
-
-def test_af3_rmsd() -> None:
-    af3output = AFParser("./tests/data/af3_recursive",
-                         process_number=12).get_output()
-    af3output.calculate_rmsds(0, 0)

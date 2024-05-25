@@ -75,3 +75,12 @@ def test_af3_hist() -> None:
 
     # fig.show()
     # input()
+
+
+def test_af3_rmsd() -> None:
+    af3output = AFParser("./tests/data/af3_recursive",
+                         process_number=12).get_output()
+    fig = af3output.plot_rmsds(0, 0)
+
+    fig.show()
+    input()
