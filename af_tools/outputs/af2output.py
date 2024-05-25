@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 import orjson
 
 from af_tools.outputs.afoutput import AFOutput
@@ -31,6 +32,7 @@ class AF2Output(AFOutput):
         return af2output.predictions
 
     def get_colabfold_predictions(self) -> Sequence[AF2Prediction]:
+
         predictions: list[AF2Prediction] = []
         if self.process_number > 1:
             outputs = [x.parent for x in list(self.path.rglob("config.json"))]
@@ -117,3 +119,33 @@ class AF2Output(AFOutput):
 
     def get_af2_predictions(self) -> Sequence[AF2Prediction]:
         return []
+
+    def get_rmsd_models(self, ref_pred_index: int,
+                        rank_index: int) -> Sequence[AF2Prediction]:
+        ref_pred = self.predictions[ref_pred_index]
+        ref_model = ref_pred.models[rank_index]
+
+        ref_model_path: Path = ref_model.relaxed_pdb_path if ref_model.relaxed_pdb_path else ref_model.model_path
+
+        model_paths: list[AF2Prediction] = []
+        for pred in self.predictions:
+            model = pred.models[rank_index]
+            if model.relaxed_pdb_path:
+                model_paths.append(model.relaxed_pdb_path)
+            else:
+                model_paths.append(model.model_path)
+
+        return []
+
+    def calculate_rmsds(self,
+                        ref_pred_index: int,
+                        rank_index: int = 0) -> NDArray:
+        ref_pred = self.predictions[ref_pred_index]
+        ref_model = ref_pred.models[rank_index]
+
+        ref_model_path: Path = ref_model.relaxed_pdb_path if ref_model.relaxed_pdb_path else ref_model.model_path
+
+        rmsds = np.empty(len(self.predictions))
+        rmsds[ref_pred_index] = 0.0
+
+        return np.zeros(1)

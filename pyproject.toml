@@ -11,6 +11,7 @@ numpy = "^1.26.4"
 
 matplotlib = "^3.9.0"
 orjson = "^3.10.3"
+biopython = "^1.83"
 [tool.poetry.group.test]
 optional = true
 

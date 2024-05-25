@@ -15,8 +15,7 @@ class AF3Output(AFOutput):
     def get_predictions(self) -> Sequence[AF3Prediction]:
         if self.process_number > 1:
             outputs = [
-                x.parent
-                for x in list(self.path.rglob("*summary_confidences_*.json"))
+                x.parent for x in list(self.path.rglob("terms_of_use.md"))
             ]
             with multiprocessing.Pool(processes=self.process_number) as pool:
                 results = pool.map(self._worker_get_pred, outputs)

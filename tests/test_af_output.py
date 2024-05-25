@@ -3,14 +3,10 @@ import pytest
 from af_tools.afparser import AFParser
 
 
-def test_af3_hist() -> None:
+def test_af3_rmsd() -> None:
     af3output = AFParser("./tests/data/af3_recursive",
                          process_number=12).get_output()
-    fig = af3output.plot_plddt_hist()
-
-    fig.show()
-    input()
-    exit()
+    af3output.calculate_rmsds(0, 0)
 
 
 def test_invalid_path() -> None:
@@ -92,6 +88,15 @@ def test_colabfold_hist() -> None:
     af2output = AFParser("./tests/data/colabfold_recursive",
                          process_number=12).get_output()
     fig = af2output.plot_plddt_hist()
+
+    # fig.show()
+    # input()
+
+
+def test_af3_hist() -> None:
+    af3output = AFParser("./tests/data/af3_recursive",
+                         process_number=12).get_output()
+    fig = af3output.plot_plddt_hist()
 
     # fig.show()
     # input()
