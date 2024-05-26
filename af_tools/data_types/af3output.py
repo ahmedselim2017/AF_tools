@@ -6,7 +6,7 @@ from typing import Sequence
 from numpy.typing import NDArray
 import orjson
 
-from af_tools.outputs.afoutput import AFOutput
+from af_tools.data_types.afoutput import AFOutput
 from af_tools.output_types import AF3Prediction, AF3Model
 
 

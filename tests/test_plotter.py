@@ -78,8 +78,9 @@ def test_af3_hist() -> None:
 
 
 def test_af3_rmsd() -> None:
-    af3output = AFParser("./tests/data/af3_recursive",
-                         process_number=12).get_output()
+    af3output = AFParser(
+        "/home/ahmedselimuzum/jff/boun/il1_docking/nbs/af_cluster/384/outputs/384_output_dropout",
+        process_number=12).get_output()
     fig = af3output.plot_rmsds(0, 0)
 
     fig.show()

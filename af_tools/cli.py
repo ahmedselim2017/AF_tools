@@ -5,8 +5,6 @@ import multiprocessing
 from itertools import repeat
 import matplotlib
 
-from .analyze import AFOutput, AFPlotter, Prediction
-
 
 def get_args() -> tuple:
     parser = argparse.ArgumentParser()
