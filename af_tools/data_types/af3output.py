@@ -3,6 +3,7 @@ import multiprocessing
 from pathlib import Path
 from typing import Sequence
 
+import numpy as np
 from numpy.typing import NDArray
 import orjson
 
@@ -79,18 +80,19 @@ class AF3Output(AFOutput):
                         token_chain_ends.append(chain_len +
                                                 token_chain_ends[-1])
 
+                atom_plddts = np.asarray(full_data["atom_plddts"])
+                pae = np.asarray(full_data["pae"])
                 models.append(
                     AF3Model(
                         name=pred_name,
                         model_path=model_path,
                         json_path=full_data_path,
                         rank=i + 1,
-                        mean_plddt=sum(full_data["atom_plddts"]) /
-                        len(full_data["atom_plddts"]),
+                        mean_plddt=np.mean(atom_plddts, axis=0),
                         ptm=summary_data["ptm"],
-                        pae=full_data["pae"],
+                        pae=pae,
                         af_version=af_version,
-                        atom_plddts=full_data["atom_plddts"],
+                        atom_plddts=atom_plddts,
                         atom_chain_ends=atom_chain_ends,
                         token_chain_ends=token_chain_ends,
                     ))

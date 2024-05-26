@@ -68,13 +68,13 @@ class AFOutput:
 
         return fig
 
-    def _calculate_rmsds(self, model_paths: list[Path], ref_pred_index: int,
-                         rank_index: int) -> NDArray:
+    def _calculate_rmsds(self, model_paths: list[Path],
+                         ref_pred_index: int) -> NDArray:
 
         ref_structure: Structure = utils.load_structure(
             model_paths[ref_pred_index])
 
-        rmsds = np.full(len(self.predictions), -1.0)
+        rmsds = np.full(len(model_paths), -1.0)
         rmsds[ref_pred_index] = 0.0
 
         if self.process_number > 1:
@@ -92,23 +92,23 @@ class AFOutput:
 
         return rmsds
 
-    def plot_rmsds(self, ref_pred_index: int,
-                   rank_index: int) -> matplotlib.figure.Figure:
-        model_paths: list[Path] = []
-        model_plddts: list[float] = []
+    def plot_rmsd_plddt(self,
+                        rank_indeces: list[int] | range,
+                        ref_pred_index: int = -1) -> matplotlib.figure.Figure:
+        model_paths: list[Path] = []  # TODO: Numpy array of paths as strings ?
+        model_plddts = np.full(len(self.predictions) * len(rank_indeces), 40.0)
 
-        for pred in self.predictions:
-            model = pred.models[rank_index]
-            model_plddts.append(model.mean_plddt)
-
-            if hasattr(model, "relaxed_pdb_path"):
-                model_paths.append(model.relaxed_pdb_path)
-            else:
-                model_paths.append(model.model_path)
-
+        for i, pred in enumerate(self.predictions):
+            for j, rank_index in enumerate(rank_indeces):
+                model = pred.models[rank_index]
+                model_plddts[i * len(rank_indeces) + j] = model.mean_plddt
+                model_paths.append(model.relaxed_pdb_path if hasattr(
+                    model, "relaxed_pdb_path") else model.model_path)
+        max_plddt_ind = np.argmax(model_plddts)
+        ref_pred_index = ref_pred_index if ref_pred_index != -1 else int(
+            max_plddt_ind)
         rmsds = self._calculate_rmsds(model_paths=model_paths,
-                                      ref_pred_index=ref_pred_index,
-                                      rank_index=rank_index)
+                                      ref_pred_index=ref_pred_index)
 
         plotter = AFPlotter()
         return plotter.plot_rmsd_plddt(model_plddts, rmsds)

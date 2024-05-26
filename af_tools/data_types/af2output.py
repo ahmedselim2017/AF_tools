@@ -101,7 +101,7 @@ class AF2Output(AFOutput):
                             relaxed_pdb_path=model_rel_path,
                             json_path=score_path,
                             rank=i + 1,
-                            mean_plddt=np.average(plddt, axis=0),
+                            mean_plddt=np.mean(plddt, axis=0),
                             ptm=score_data["ptm"],
                             pae=pae,
                             af_version=af_version,

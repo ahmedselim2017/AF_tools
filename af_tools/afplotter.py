@@ -169,7 +169,7 @@ class AFPlotter:
         fig.tight_layout()
         return fig
 
-    def plot_rmsd_plddt(self, plddts: list[float],
+    def plot_rmsd_plddt(self, plddts: NDArray,
                         rmsds: NDArray) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
