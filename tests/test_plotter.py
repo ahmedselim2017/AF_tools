@@ -81,7 +81,7 @@ def test_af3_rmsd() -> None:
     af3output = AFParser(
         "/home/ahmedselimuzum/jff/boun/il1_docking/nbs/af_cluster/384/outputs/384_output_dropout",
         process_number=12).get_output()
-    fig = af3output.plot_rmsds(0, 0)
+    fig = af3output.plot_rmsd_plddt(rank_indeces=range(5), ref_pred_index=-1)
 
     fig.show()
     input()
