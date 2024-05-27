@@ -1,10 +1,13 @@
 from pathlib import Path
+from typing import Sequence
 from Bio.PDB.Structure import Structure
 from Bio.PDB.Atom import Atom
 
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
+
+from af_tools.output_types import AF2Prediction, AF3Prediction
 
 
 def load_structure(path: Path) -> Structure:
@@ -17,9 +20,9 @@ def load_structure(path: Path) -> Structure:
     return parser.get_structure(path.name, path)
 
 
-def calculate_rmsd(ref_model_structure: Structure,
-                   target_model_path: Path,
-                   index: int = 0) -> tuple[int, float]:
+def worker_calculate_rmsd(ref_model_structure: Structure,
+                          target_model_path: Path,
+                          index: int = 0) -> tuple[int, float]:
 
     target_model_structure = load_structure(target_model_path)
 
@@ -44,8 +47,21 @@ def calculate_rmsd(ref_model_structure: Structure,
     return (index, sup.rms)
 
 
-def calculate_rmsd_wrapper(args: tuple) -> tuple[int, float]:
+def worker_wrapper_calculate_rmsd(args: tuple) -> tuple[int, float]:
     ref_model_structure, target_model_path, index = args
-    return calculate_rmsd(ref_model_structure=ref_model_structure,
-                          target_model_path=target_model_path,
-                          index=index)
+    return worker_calculate_rmsd(ref_model_structure=ref_model_structure,
+                                 target_model_path=target_model_path,
+                                 index=index)
+
+
+def worker_af2output_get_pred(path: Path) -> Sequence[AF2Prediction]:
+    from af_tools.data_types.af2output import AF2Output
+    af2output = AF2Output(path=path, process_number=1)
+    # print(len(af2output.predictions))
+    return af2output.predictions
+
+
+def worker_af3output_get_pred(path: Path) -> Sequence[AF3Prediction]:
+    from af_tools.data_types.af3output import AF3Output
+    af3output = AF3Output(path=path, process_number=1)
+    return af3output.predictions

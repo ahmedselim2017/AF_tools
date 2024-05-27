@@ -90,6 +90,6 @@ def test_colabfcolabfold_rmsd() -> None:
     clust_paths, clust_plddts = colabfold_output.get_rmsd_plddt_cluster_paths(
         rank_indeces=[0], hbscan=hbscan)
 
-    print(clust_paths[np.argmax(clust_plddts)])
-    fig.show()
-    input()
+    # print(clust_paths[np.argmax(clust_plddts)])
+    # fig.show()
+    # input()

@@ -7,7 +7,9 @@ from typing import Sequence
 import numpy as np
 from numpy.typing import NDArray
 import orjson
+from tqdm import tqdm
 
+from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
 from af_tools.output_types import AF3Prediction, AF3Model
 
@@ -20,7 +22,10 @@ class AF3Output(AFOutput):
                 x.parent for x in list(self.path.rglob("terms_of_use.md"))
             ]
             with multiprocessing.Pool(processes=self.process_number) as pool:
-                results = pool.map(self._worker_get_pred, outputs)
+                results = tqdm(pool.map(utils.worker_af3output_get_pred,
+                                        outputs),
+                               total=len(outputs),
+                               desc="Loading AF3Outputs")
 
             predictions: list[AF3Prediction] = [j for i in results for j in i]
             predictions = sorted(predictions,
@@ -111,7 +116,3 @@ class AF3Output(AFOutput):
                     is_colabfold=False,
                 )
             ]
-
-    def _worker_get_pred(self, path: Path) -> Sequence[AF3Prediction]:
-        af3output = AF3Output(path=path, process_number=1)
-        return af3output.predictions

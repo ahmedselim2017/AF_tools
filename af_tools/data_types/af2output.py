@@ -6,7 +6,9 @@ import operator
 import numpy as np
 from numpy.typing import NDArray
 import orjson
+from tqdm import tqdm
 
+from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
 from af_tools.output_types import AF2Prediction, AF2Model
 
@@ -28,17 +30,16 @@ class AF2Output(AFOutput):
             return self.get_colabfold_predictions()
         return self.get_af2_predictions()
 
-    def _worker_get_pred(self, path: Path) -> Sequence[AF2Prediction]:
-        af2output = AF2Output(path=path, process_number=1)
-        return af2output.predictions
-
     def get_colabfold_predictions(self) -> Sequence[AF2Prediction]:
 
         predictions: list[AF2Prediction] = []
         if self.process_number > 1:
             outputs = [x.parent for x in list(self.path.rglob("config.json"))]
             with multiprocessing.Pool(processes=self.process_number) as pool:
-                results = pool.imap_unordered(self._worker_get_pred, outputs)
+                results = tqdm(pool.map(utils.worker_af2output_get_pred,
+                                        outputs),
+                               total=len(outputs),
+                               desc="Loading Colabfold predictions")
 
             predictions = [j for i in results
                            for j in i]  # flatten the results

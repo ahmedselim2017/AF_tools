@@ -8,10 +8,12 @@ from numpy.typing import NDArray
 
 from Bio.PDB.Structure import Structure
 from sklearn.cluster import HDBSCAN
+from tqdm import tqdm
 
 from af_tools.afplotter import AFPlotter
 from af_tools.output_types import AFModel
 from af_tools import utils
+# from af_tools import utils
 
 
 class AFOutput:
@@ -71,6 +73,7 @@ class AFOutput:
         ref_structure: Structure | None = None,
     ) -> tuple[NDArray, NDArray]:
 
+        print(self.process_number)
         model_paths: list[Path] = []  # NOTE: Numpy string array for paths?
         plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
 
@@ -91,18 +94,22 @@ class AFOutput:
 
         rmsds = np.full(len(model_paths), -1.0)
 
-        if self.process_number > 1:
+        if self.process_number > 1 and False:
+            print("z")
             with mp.Pool(processes=self.process_number) as pool:
-                results = pool.imap_unordered(
-                    utils.calculate_rmsd_wrapper,
-                    [(ref_structure, m_path, i)
-                     for i, m_path in enumerate(model_paths)])
+                results = pool.map(utils.worker_wrapper_calculate_rmsd,
+                                   [(ref_structure, m_path, i)
+                                    for i, m_path in enumerate(model_paths)]),
 
+                print("x")
                 for result in results:
+                    print(results[0])
                     rmsds[result[0]] = result[1]
+            print("y")
         else:
             for i, structure in enumerate(model_paths):
-                rmsds[i] = utils.calculate_rmsd(ref_structure, structure, i)[1]
+                rmsds[i] = utils.worker_calculate_rmsd(ref_structure,
+                                                       structure, i)[1]
 
         return rmsds, plddts
 
