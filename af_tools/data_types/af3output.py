@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import multiprocessing
+import operator
 from pathlib import Path
 from typing import Sequence
 
@@ -21,7 +22,11 @@ class AF3Output(AFOutput):
             with multiprocessing.Pool(processes=self.process_number) as pool:
                 results = pool.map(self._worker_get_pred, outputs)
 
-            return [j for i in results for j in i]  # flatten the results
+            predictions: list[AF3Prediction] = [j for i in results for j in i]
+            predictions = sorted(predictions,
+                                 reverse=True,
+                                 key=operator.attrgetter("best_mean_plddt"))
+            return predictions  # flatten the results
         else:
             af_version = "alphafold3"
             full_data_paths = sorted(self.path.glob("*_full_data*.json"))
@@ -102,6 +107,7 @@ class AF3Output(AFOutput):
                     num_ranks=len(models),
                     af_version=af_version,
                     models=models,
+                    best_mean_plddt=models[0].mean_plddt,
                     is_colabfold=False,
                 )
             ]

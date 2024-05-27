@@ -23,6 +23,7 @@ class AFPrediction:
     num_ranks: int
     af_version: str
     is_colabfold: bool
+    best_mean_plddt: float
     models: Sequence[AFModel]
 
 

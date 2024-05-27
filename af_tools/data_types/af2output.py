@@ -1,6 +1,7 @@
 import multiprocessing
 from pathlib import Path
 from typing import Sequence
+import operator
 
 import numpy as np
 from numpy.typing import NDArray
@@ -37,11 +38,11 @@ class AF2Output(AFOutput):
         if self.process_number > 1:
             outputs = [x.parent for x in list(self.path.rglob("config.json"))]
             with multiprocessing.Pool(processes=self.process_number) as pool:
-                results = pool.map(self._worker_get_pred, outputs)
+                results = pool.imap_unordered(self._worker_get_pred, outputs)
 
             predictions = [j for i in results
                            for j in i]  # flatten the results
-            print("loaded files")
+
         else:
             with open(self.path / "config.json", "rb") as config_file:
                 config_data = orjson.loads(config_file.read())
@@ -114,8 +115,13 @@ class AF2Output(AFOutput):
                         num_ranks=num_ranks,
                         af_version=af_version,
                         models=models,
+                        best_mean_plddt=models[0].mean_plddt,
                         is_colabfold=True,
                     ))
+
+        predictions = sorted(predictions,
+                             reverse=True,
+                             key=operator.attrgetter("best_mean_plddt"))
         return predictions
 
     def get_af2_predictions(self) -> Sequence[AF2Prediction]:

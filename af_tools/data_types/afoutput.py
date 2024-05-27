@@ -2,7 +2,7 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import Sequence
 
-import matplotlib.figure
+from matplotlib.figure import Figure
 import numpy as np
 from numpy.typing import NDArray
 
@@ -35,15 +35,15 @@ class AFOutput:
     def get_predictions(self) -> Sequence:
         raise Exception("Can't get predictions")
 
-    def plot_all_plddts(self) -> list[matplotlib.figure.Figure]:
-        figures: list[matplotlib.figure.Figure] = []
+    def plot_all_plddts(self) -> list[Figure]:
+        figures: list[Figure] = []
         plotter = AFPlotter()
         for pred in self.predictions:
             figures.append(plotter.plot_plddt(pred))
         return figures
 
-    def plot_all_paes(self) -> list[matplotlib.figure.Figure]:
-        figures: list[matplotlib.figure.Figure] = []
+    def plot_all_paes(self) -> list[Figure]:
+        figures: list[Figure] = []
         plotter = AFPlotter()
         for pred in self.predictions:
             figures.append(plotter.plot_pae(pred))
@@ -51,7 +51,7 @@ class AFOutput:
 
     def plot_plddt_hist(self,
                         use_color: bool = True,
-                        draw_mean: bool = True) -> matplotlib.figure.Figure:
+                        draw_mean: bool = True) -> Figure:
         plotter = AFPlotter()
 
         predicted_models: list[AFModel] = []
@@ -106,15 +106,13 @@ class AFOutput:
 
         return rmsds, plddts
 
-    def plot_rmsd_plddt(
-            self,
-            rmsds: NDArray,
-            plddts: NDArray,
-            hbscan: HDBSCAN,
-            should_cluster: bool = True) -> matplotlib.figure.Figure:
+    def plot_rmsd_plddt(self,
+                        rmsds: NDArray,
+                        plddts: NDArray,
+                        hbscan: HDBSCAN | None = None) -> Figure:
 
         labels: NDArray | None = None
-        if should_cluster:
+        if hbscan is not None:
             labels = hbscan.labels_
 
         plotter = AFPlotter()
