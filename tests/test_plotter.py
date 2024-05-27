@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from af_tools.afparser import AFParser
 
@@ -77,11 +78,18 @@ def test_af3_hist() -> None:
     # input()
 
 
-def test_af3_rmsd() -> None:
-    af3output = AFParser(
-        "/home/ahmedselimuzum/jff/boun/il1_docking/nbs/af_cluster/384/outputs/384_output_dropout",
-        process_number=12).get_output()
-    fig = af3output.plot_rmsd_plddt(rank_indeces=range(5), ref_pred_index=-1)
+def test_colabfcolabfold_rmsd() -> None:
+    colabfold_output = AFParser("./tests/data/colabfold_rmsd",
+                                process_number=12).get_output()
+    rmsds, plddts = colabfold_output.calculate_rmsds_plddts(rank_indeces=[0])
+    hbscan = colabfold_output.get_rmsd_plddt_hbscan(rmsds=rmsds, plddts=plddts)
+    fig = colabfold_output.plot_rmsd_plddt(rmsds=rmsds,
+                                           plddts=plddts,
+                                           hbscan=hbscan)
 
+    clust_paths, clust_plddts = colabfold_output.get_rmsd_plddt_cluster_paths(
+        rank_indeces=[0], hbscan=hbscan)
+
+    print(clust_paths[np.argmax(clust_plddts)])
     fig.show()
     input()

@@ -6,12 +6,8 @@ import matplotlib.figure
 import numpy as np
 from numpy.typing import NDArray
 
-from Bio.PDB.MMCIFParser import MMCIFParser
-from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.Superimposer import Superimposer
-
 from Bio.PDB.Structure import Structure
-from Bio.PDB.Atom import Atom
+from sklearn.cluster import HDBSCAN
 
 from af_tools.afplotter import AFPlotter
 from af_tools.output_types import AFModel
@@ -68,14 +64,32 @@ class AFOutput:
 
         return fig
 
-    def _calculate_rmsds(self, model_paths: list[Path],
-                         ref_pred_index: int) -> NDArray:
+    def calculate_rmsds_plddts(
+        self,
+        rank_indeces: list[int] | range,
+        ref_index: int | None = None,
+        ref_structure: Structure | None = None,
+    ) -> tuple[NDArray, NDArray]:
 
-        ref_structure: Structure = utils.load_structure(
-            model_paths[ref_pred_index])
+        model_paths: list[Path] = []  # NOTE: Numpy string array for paths?
+        plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
+
+        for i, pred in enumerate(self.predictions):
+            for j, rank_index in enumerate(rank_indeces):
+                model = pred.models[rank_index]
+                plddts[i * len(rank_indeces) + j] = model.mean_plddt
+                model_paths.append(model.relaxed_pdb_path if hasattr(
+                    model, "relaxed_pdb_path") else model.model_path)
+
+        if ref_structure is None and ref_index is None:
+            max_plddt_ind = np.argmax(plddts)
+            ref_structure = utils.load_structure(model_paths[max_plddt_ind])
+        elif ref_index:
+            ref_structure = utils.load_structure(model_paths[ref_index])
+
+        assert ref_structure
 
         rmsds = np.full(len(model_paths), -1.0)
-        rmsds[ref_pred_index] = 0.0
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
@@ -90,25 +104,56 @@ class AFOutput:
             for i, structure in enumerate(model_paths):
                 rmsds[i] = utils.calculate_rmsd(ref_structure, structure, i)[1]
 
-        return rmsds
+        return rmsds, plddts
 
-    def plot_rmsd_plddt(self,
-                        rank_indeces: list[int] | range,
-                        ref_pred_index: int = -1) -> matplotlib.figure.Figure:
-        model_paths: list[Path] = []  # TODO: Numpy array of paths as strings ?
-        model_plddts = np.full(len(self.predictions) * len(rank_indeces), 40.0)
+    def plot_rmsd_plddt(
+            self,
+            rmsds: NDArray,
+            plddts: NDArray,
+            hbscan: HDBSCAN,
+            should_cluster: bool = True) -> matplotlib.figure.Figure:
+
+        labels: NDArray | None = None
+        if should_cluster:
+            labels = hbscan.labels_
+
+        plotter = AFPlotter()
+        return plotter.plot_rmsd_plddt(plddts, rmsds, labels=labels)
+
+    def get_rmsd_plddt_hbscan(self,
+                              rmsds: NDArray,
+                              plddts: NDArray,
+                              min_sample_size: int = 2) -> HDBSCAN:
+        from sklearn.cluster import HDBSCAN
+        hdb = HDBSCAN(min_samples=min_sample_size)
+        hdb.fit(np.dstack((rmsds, plddts))[0])
+        return hdb
+
+    def get_rmsd_plddt_cluster_paths(self, rank_indeces: list[int] | range,
+                                     hbscan: HDBSCAN) -> tuple:
+        model_paths = np.empty(len(self.predictions) * len(rank_indeces),
+                               dtype=np.dtypes.StrDType)
+        plddts = np.empty(len(self.predictions) * len(rank_indeces))
 
         for i, pred in enumerate(self.predictions):
             for j, rank_index in enumerate(rank_indeces):
                 model = pred.models[rank_index]
-                model_plddts[i * len(rank_indeces) + j] = model.mean_plddt
-                model_paths.append(model.relaxed_pdb_path if hasattr(
-                    model, "relaxed_pdb_path") else model.model_path)
-        max_plddt_ind = np.argmax(model_plddts)
-        ref_pred_index = ref_pred_index if ref_pred_index != -1 else int(
-            max_plddt_ind)
-        rmsds = self._calculate_rmsds(model_paths=model_paths,
-                                      ref_pred_index=ref_pred_index)
+                plddts[i * len(rank_indeces) + j] = model.mean_plddt
+                if hasattr(model, "relaxed_pdb_path"):
+                    model_paths[i * len(rank_indeces) + j] = str(
+                        model.relaxed_pdb_path)
+                else:
+                    model_paths[i * len(rank_indeces) + j] = str(
+                        model.model_path)
 
-        plotter = AFPlotter()
-        return plotter.plot_rmsd_plddt(model_plddts, rmsds)
+        clusters = np.unique(hbscan.labels_)
+        clusters = clusters[clusters != 1]
+
+        cluster_paths: list[NDArray] = []
+        cluster_plddts = np.empty(len(clusters))
+        for i, cluster in enumerate(clusters):
+            selected_indices = np.where(hbscan.labels_ == cluster)
+            cluster_plddts[i] = np.mean(plddts[selected_indices])
+            cluster_paths.append(np.unique(model_paths[selected_indices]))
+
+        return cluster_paths, cluster_plddts

@@ -170,7 +170,7 @@ class AFPlotter:
         return fig
 
     def plot_rmsd_plddt(self, plddts: NDArray,
-                        rmsds: NDArray) -> matplotlib.figure.Figure:
+                        rmsds: NDArray, labels: NDArray | None = None) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 
@@ -181,7 +181,21 @@ class AFPlotter:
         ax.axhspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
         ax.axhspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
 
-        ax.scatter(rmsds, plddts, alpha=0.3)
+        if labels is None:
+            ax.scatter(rmsds, plddts, alpha=0.3)
+        else:
+            for i, label in enumerate(np.unique(labels)):
+                color = self.colors[i % len(self.colors)] if label != -1 else "black"
+
+                selected_indices = np.where(labels == label)
+
+                ax.scatter(rmsds[selected_indices], plddts[selected_indices],
+                           alpha=0.3,
+                           label=label,
+                           color=color)
+
+            ax.legend()
+
 
         fig.tight_layout()
         return fig
