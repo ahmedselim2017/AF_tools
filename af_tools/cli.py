@@ -8,6 +8,7 @@ import matplotlib
 from matplotlib.figure import Figure
 
 from af_tools.afparser import AFParser
+from af_tools.data_types import colabfold_msa
 from af_tools.output_types import AFPrediction
 from af_tools.afplotter import AFPlotter
 
@@ -15,12 +16,14 @@ from af_tools.afplotter import AFPlotter
 def get_args() -> dict:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--af_dir",
-                        help="Output directory of Alphafold",
-                        required=True)
-    parser.add_argument("--fig_dir",
-                        help="Directory for figure outputs",
-                        required=True)
+    parser.add_argument("--che589", action="store_true", required=False)
+    parser.add_argument("--msa_path", type=str, default="-1", required=False)
+
+    parser.add_argument("--af_dir", help="Output directory of Alphafold")
+    parser.add_argument(
+        "--fig_dir",
+        help="Directory for figure outputs",
+    )
     parser.add_argument(
         "-n",
         "--process_number",
@@ -69,7 +72,9 @@ def get_args() -> dict:
         "plot_plddt": args.plddt,
         "plot_pae": args.pae,
         "plot_plddt_hist": args.plddt_hist,
-        "plot_all": args.plot_all
+        "plot_all": args.plot_all,
+        "che589": args.che589,
+        "msaPath": args.msa_path
     }
 
 
@@ -105,6 +110,22 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
 
 def cli() -> None:
     args_dict = get_args()
+
+    if args_dict["che589"]:
+        if args_dict["msaPath"] == "-1":
+            emsg = "No MSA path is given\n"
+            sys.stderr.write(emsg)
+            sys.exit(1)
+        elif not Path(args_dict["msaPath"]).is_file():
+            emsg = f"Given MSA file path is not a file: {args_dict['msaPath']}\n"
+            sys.stderr.write(emsg)
+            sys.exit(1)
+
+        msa = colabfold_msa.ColabfoldMSA(args_dict["msaPath"])
+        for i in range(10):
+            msa.sample_records(2**i, 5)
+
+        sys.exit(0)
 
     fig_path = Path(args_dict["fig_dir"])
 

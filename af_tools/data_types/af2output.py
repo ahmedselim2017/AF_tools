@@ -33,8 +33,8 @@ class AF2Output(AFOutput):
     def get_colabfold_predictions(self) -> Sequence[AF2Prediction]:
 
         predictions: list[AF2Prediction] = []
-        if self.process_number > 1:
-            outputs = [x.parent for x in list(self.path.rglob("config.json"))]
+        outputs = [x.parent for x in list(self.path.rglob("config.json"))]
+        if self.process_number > 1 and len(outputs) > 1:
             with multiprocessing.Pool(processes=self.process_number) as pool:
                 results = tqdm(pool.map(utils.worker_af2output_get_pred,
                                         outputs),
