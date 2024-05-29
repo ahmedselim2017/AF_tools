@@ -16,7 +16,7 @@ from af_tools.afplotter import AFPlotter
 def get_args() -> dict:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--che589", action="store_true", required=False)
+    parser.add_argument("--msa_subsample", action="store_true", required=False)
     parser.add_argument("--msa_path", type=str, default="-1", required=False)
 
     parser.add_argument("--af_dir", help="Output directory of Alphafold")
@@ -73,7 +73,7 @@ def get_args() -> dict:
         "plot_pae": args.pae,
         "plot_plddt_hist": args.plddt_hist,
         "plot_all": args.plot_all,
-        "che589": args.che589,
+        "msa_subsample": args.msa_subsample,
         "msaPath": args.msa_path
     }
 
@@ -111,7 +111,7 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
 def cli() -> None:
     args_dict = get_args()
 
-    if args_dict["che589"]:
+    if args_dict["msa_subsample"]:
         if args_dict["msaPath"] == "-1":
             emsg = "No MSA path is given\n"
             sys.stderr.write(emsg)
