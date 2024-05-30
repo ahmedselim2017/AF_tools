@@ -18,9 +18,13 @@ from af_tools import utils
 
 class AFOutput:
 
-    def __init__(self, path: str | Path, process_number: int = 1):
+    def __init__(self,
+                 path: str | Path,
+                 process_number: int = 1,
+                 search_recursively: bool = False):
         self.path = self.check_path(path)
         self.process_number = process_number
+        self.search_recursively = search_recursively
         self.predictions = self.get_predictions()
         self.rmsds: NDArray | None = None
 
@@ -73,7 +77,6 @@ class AFOutput:
         ref_structure: Structure | None = None,
     ) -> tuple[NDArray, NDArray]:
 
-        print(self.process_number)
         model_paths: list[Path] = []  # NOTE: Numpy string array for paths?
         plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
 
@@ -94,22 +97,23 @@ class AFOutput:
 
         rmsds = np.full(len(model_paths), -1.0)
 
-        if self.process_number > 1 and False:
-            print("z")
+        if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
-                results = pool.map(utils.worker_wrapper_calculate_rmsd,
-                                   [(ref_structure, m_path, i)
-                                    for i, m_path in enumerate(model_paths)]),
+                results = tqdm(pool.imap_unordered(
+                    utils.worker_wrapper_calculate_rmsd,
+                    [(ref_structure, m_path, i)
+                     for i, m_path in enumerate(model_paths)]),
+                               desc="Calculating RMSDs",
+                               total=len(model_paths))
 
-                print("x")
                 for result in results:
-                    print(results[0])
                     rmsds[result[0]] = result[1]
-            print("y")
         else:
-            for i, structure in enumerate(model_paths):
+            pbar = tqdm(model_paths)
+            for i, structure in enumerate(pbar):
                 rmsds[i] = utils.worker_calculate_rmsd(ref_structure,
                                                        structure, i)[1]
+                pbar.set_description(f"Calculating RMSDs of {structure}")
 
         return rmsds, plddts
 
