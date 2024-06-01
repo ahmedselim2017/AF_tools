@@ -1,5 +1,6 @@
 import multiprocessing as mp
 from pathlib import Path
+from itertools import batched
 from typing import Sequence
 
 from matplotlib.figure import Figure
@@ -70,6 +71,55 @@ class AFOutput:
 
         return fig
 
+    def calculate_tms(self, rank_index: int = 0):
+        # TODO
+        rmsds = np.full((len(self.predictions), len(self.predictions)), -99)
+
+        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
+        for i, pred in enumerate(self.predictions):
+            model = pred.models[rank_index]
+            if hasattr(model, "relaxed_pdb_path"):
+                model_paths[i] = str(model.relaxed_pdb_path)
+            else:
+                model_paths[i] = str(model.model_path)
+
+        if self.process_number > 1:
+            jobs = []
+            for i, m1 in enumerate(model_paths):
+                for j, m2 in enumerate(model_paths):
+                    if i < j:
+                        continue
+                    jobs.append((m1, m2, (i, j)))
+
+    def calculate_rmsds(self, rank_index: int = 0):
+        rmsds = np.full((len(self.predictions), len(self.predictions)), -99)
+
+        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
+
+        for i, pred in enumerate(self.predictions):
+            model = pred.models[rank_index]
+            if hasattr(model, "relaxed_pdb_path"):
+                model_paths[i] = str(model.relaxed_pdb_path)
+            else:
+                model_paths[i] = str(model.model_path)
+
+        if self.process_number > 1:
+            jobs = []
+            for i, m1 in enumerate(model_paths):
+                for j, m2 in enumerate(model_paths):
+                    if i < j:
+                        continue
+                    jobs.append((m1, m2, (i, j)))
+            with mp.Pool(processes=self.process_number) as pool:
+                results = tqdm(pool.imap_unordered(
+                    utils.worker_wrapper_calculate_rmsd, jobs),
+                               desc="Calculating RMSDs",
+                               total=len(jobs))
+                for result in results:
+                    rmsds[result[0][0], result[0][1]] = result[1]
+
+        return rmsds
+
     def calculate_rmsds_plddts(
         self,
         rank_indeces: list[int] | range,
@@ -77,15 +127,18 @@ class AFOutput:
         ref_structure: Structure | None = None,
     ) -> tuple[NDArray, NDArray]:
 
-        model_paths: list[Path] = []  # NOTE: Numpy string array for paths?
+        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
         plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
 
         for i, pred in enumerate(self.predictions):
             for j, rank_index in enumerate(rank_indeces):
                 model = pred.models[rank_index]
                 plddts[i * len(rank_indeces) + j] = model.mean_plddt
-                model_paths.append(model.relaxed_pdb_path if hasattr(
-                    model, "relaxed_pdb_path") else model.model_path)
+                if hasattr(model, "relaxed_pdb_path"):
+                    model_paths[i * len(rank_indeces) +
+                                j] = model.relaxed_pdb_path
+                else:
+                    model_paths[i * len(rank_indeces) + j] = model.model_path
 
         if ref_structure is None and ref_index is None:
             max_plddt_ind = np.argmax(plddts)

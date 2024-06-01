@@ -10,21 +10,25 @@ from Bio.PDB.Superimposer import Superimposer
 from af_tools.output_types import AF2Prediction, AF3Prediction
 
 
-def load_structure(path: Path) -> Structure:
-    if path.suffix == ".cif":
+def load_structure(path: str) -> Structure:
+    if path.split(".")[-1] == "cif":
         parser = MMCIFParser()
-    elif path.suffix == ".pdb":
+    elif path.split(".")[-1] == "pdb":
         parser = PDBParser()
     else:
-        raise Exception(f"Unknwon model file types:{str(path)}")
-    return parser.get_structure(path.name, path)
+        raise Exception(f"Unknwon model file types:{path}")
+    return parser.get_structure(path, path)
 
 
-def worker_calculate_rmsd(ref_model_structure: Structure,
-                          target_model_path: Path,
-                          index: int = 0) -> tuple[int, float]:
+def worker_calculate_rmsd(ref_model: Structure | str, target_model_path: str,
+                          index) -> tuple:
 
     target_model_structure = load_structure(target_model_path)
+
+    if isinstance(ref_model, str):
+        ref_model_structure = load_structure(ref_model)
+    else:
+        ref_model_structure = ref_model
 
     if ref_model_structure == target_model_structure:
         return (index, 0)
@@ -47,9 +51,9 @@ def worker_calculate_rmsd(ref_model_structure: Structure,
     return (index, sup.rms)
 
 
-def worker_wrapper_calculate_rmsd(args: tuple) -> tuple[int, float]:
+def worker_wrapper_calculate_rmsd(args: tuple) -> tuple:
     ref_model_structure, target_model_path, index = args
-    return worker_calculate_rmsd(ref_model_structure=ref_model_structure,
+    return worker_calculate_rmsd(ref_model=ref_model_structure,
                                  target_model_path=target_model_path,
                                  index=index)
 

@@ -9,9 +9,10 @@ import math
 
 class ColabfoldMSA:
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, same_dir: bool = False):
         self.path = self._check_path(path)
         self.header, self.records = self._load_msa()
+        self.same_dir = same_dir
 
     def _check_path(self, path: str | Path) -> Path:
         if isinstance(path, str):
@@ -51,15 +52,20 @@ class ColabfoldMSA:
         samples = self._get_samples(sample_lenght=sample_lenght,
                                     sample_count=sample_count)
         if save_samples:
-            if not output_path:
-                if make_subdir:
-                    output_path = self.path.parent / f"{self.path.stem}_MSAs" / f"length_{sample_lenght}-count_{sample_count}"
-                else:
-                    output_path = self.path.parent / f"{self.path.stem}_MSAs"
-                output_path.mkdir(exist_ok=True, parents=True)
+            if not self.same_dir:
+                if not output_path:
+                    if make_subdir:
+                        output_path = self.path.parent / f"{self.path.stem}_MSAs" / f"length_{sample_lenght}-count_{sample_count}"
+                    else:
+                        output_path = self.path.parent / f"{self.path.stem}_MSAs"
+                    output_path.mkdir(exist_ok=True, parents=True)
+                name_prefix = ""
+            else:
+                output_path = self.path.parent
+                name_prefix = f"{self.path.stem}_"
 
             for i, sample in enumerate(samples):
-                name = f"length_{sample_lenght}-count_{sample_count}-{i:0{math.ceil(math.log10(sample_count))}}.a3m"
+                name = f"{name_prefix}_length_{sample_lenght}-count_{sample_count}-{i:0{math.ceil(math.log10(sample_count))}}.a3m"
                 with open(output_path / name, "w") as output_file:
                     output_file.write(self.header)
                     SeqIO.write(sample, output_file, "fasta-2line")

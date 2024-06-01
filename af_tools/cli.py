@@ -18,6 +18,7 @@ def get_args() -> dict:
 
     parser.add_argument("--msa_subsample", action="store_true", required=False)
     parser.add_argument("--msa_path", type=str, default="-1", required=False)
+    parser.add_argument("--same_dir", action="store_true", required=False)
 
     parser.add_argument("--af_dir", help="Output directory of Alphafold")
     parser.add_argument(
@@ -74,7 +75,8 @@ def get_args() -> dict:
         "plot_plddt_hist": args.plddt_hist,
         "plot_all": args.plot_all,
         "msa_subsample": args.msa_subsample,
-        "msaPath": args.msa_path
+        "msaPath": args.msa_path,
+        "same_dir": args.same_dir
     }
 
 
@@ -121,7 +123,8 @@ def cli() -> None:
             sys.stderr.write(emsg)
             sys.exit(1)
 
-        msa = colabfold_msa.ColabfoldMSA(args_dict["msaPath"])
+        msa = colabfold_msa.ColabfoldMSA(args_dict["msaPath"],
+                                         args_dict["same_dir"])
         for i in range(10):
             msa.sample_records(2**i, 5)
 

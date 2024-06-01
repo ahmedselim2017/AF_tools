@@ -169,8 +169,28 @@ class AFPlotter:
         fig.tight_layout()
         return fig
 
-    def plot_rmsd_plddt(self, plddts: NDArray,
-                        rmsds: NDArray, labels: NDArray | None = None) -> matplotlib.figure.Figure:
+    def plot_upper_trig(self, matrix: NDArray,
+                        labels: list[str]) -> matplotlib.figure.Figure:
+        fig = plt.figure(figsize=self.figsize)
+        ax = plt.axes()
+
+        mask = np.triu(np.ones((matrix.shape[0], matrix.shape[0])))
+        matrix = np.ma.array(matrix, mask=mask)
+
+        cmap = matplotlib.colormaps["plasma"]
+        cmap.set_bad('w')
+        cax = ax.matshow(matrix, cmap=cmap)
+
+        fig.colorbar(cax, fraction=0.046, pad=0.04)
+        ax.grid(True)
+
+        return fig
+
+    def plot_rmsd_plddt(
+            self,
+            plddts: NDArray,
+            rmsds: NDArray,
+            labels: NDArray | None = None) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 
@@ -185,17 +205,18 @@ class AFPlotter:
             ax.scatter(rmsds, plddts, alpha=0.3)
         else:
             for i, label in enumerate(np.unique(labels)):
-                color = self.colors[i % len(self.colors)] if label != -1 else "black"
+                color = self.colors[i % len(
+                    self.colors)] if label != -1 else "black"
 
                 selected_indices = np.where(labels == label)
 
-                ax.scatter(rmsds[selected_indices], plddts[selected_indices],
+                ax.scatter(rmsds[selected_indices],
+                           plddts[selected_indices],
                            alpha=0.3,
                            label=label,
                            color=color)
 
             ax.legend()
-
 
         fig.tight_layout()
         return fig

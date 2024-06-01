@@ -1,6 +1,7 @@
 import pytest
 
 from af_tools.afparser import AFParser
+from af_tools.afplotter import AFPlotter
 
 
 def test_colabfold_recursive() -> None:
@@ -33,6 +34,10 @@ def test_af3_recursive_multiprocessing() -> None:
 def test_colabfold_rmsd() -> None:
     output = AFParser("./tests/data/colabfold_rmsd",
                       process_number=12).get_output()
+    plotter = AFPlotter()
 
-    rmsds, plddts = output.calculate_rmsds_plddts(rank_indeces=[0])
-    print(output.rmsds)
+    rmsds = output.calculate_rmsds(rank_index=0)
+    fig = plotter.plot_rmsds(rmsds, [])
+
+    fig.show()
+    input()
