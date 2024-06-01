@@ -65,7 +65,7 @@ class ColabfoldMSA:
                 name_prefix = f"{self.path.stem}_"
 
             for i, sample in enumerate(samples):
-                name = f"{name_prefix}_length_{sample_lenght}-count_{sample_count}-{i:0{math.ceil(math.log10(sample_count))}}.a3m"
+                name = f"{name_prefix}length_{sample_lenght}-count_{sample_count}-{i:0{math.ceil(math.log10(sample_count))}}.a3m"
                 with open(output_path / name, "w") as output_file:
                     output_file.write(self.header)
                     SeqIO.write(sample, output_file, "fasta-2line")
