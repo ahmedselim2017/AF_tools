@@ -14,7 +14,6 @@ from tqdm import tqdm
 from af_tools.afplotter import AFPlotter
 from af_tools.output_types import AFModel
 from af_tools import utils
-# from af_tools import utils
 
 
 class AFOutput:
@@ -70,26 +69,6 @@ class AFOutput:
                                       draw_mean=draw_mean)
 
         return fig
-
-    def calculate_tms(self, rank_index: int = 0):
-        # TODO
-        rmsds = np.full((len(self.predictions), len(self.predictions)), -99)
-
-        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
-        for i, pred in enumerate(self.predictions):
-            model = pred.models[rank_index]
-            if hasattr(model, "relaxed_pdb_path"):
-                model_paths[i] = str(model.relaxed_pdb_path)
-            else:
-                model_paths[i] = str(model.model_path)
-
-        if self.process_number > 1:
-            jobs = []
-            for i, m1 in enumerate(model_paths):
-                for j, m2 in enumerate(model_paths):
-                    if i < j:
-                        continue
-                    jobs.append((m1, m2, (i, j)))
 
     def calculate_rmsds(self, rank_index: int = 0):
         rmsds = np.full((len(self.predictions), len(self.predictions)), -99)
