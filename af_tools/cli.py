@@ -1,102 +1,36 @@
-import argparse
 import sys
 from pathlib import Path
 import multiprocessing
-from itertools import repeat
+import pickle
 
+import click
 import matplotlib
 from matplotlib.figure import Figure
 
 from af_tools.afparser import AFParser
-from af_tools.data_types import colabfold_msa
 from af_tools.output_types import AFPrediction
 from af_tools.afplotter import AFPlotter
+from af_tools.data_types.afoutput import AFOutput
+from af_tools.data_types.colabfold_msa import ColabfoldMSA
 
 
-def get_args() -> dict:
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--msa_subsample", action="store_true", required=False)
-    parser.add_argument("--msa_path", type=str, default="-1", required=False)
-    parser.add_argument("--same_dir", action="store_true", required=False)
-
-    parser.add_argument("--af_dir", help="Output directory of Alphafold")
-    parser.add_argument(
-        "--fig_dir",
-        help="Directory for figure outputs",
-    )
-    parser.add_argument(
-        "-n",
-        "--process_number",
-        help="Number of processes to use while multiprocessing",
-        default=1,
-        type=int,
-        required=False)
-    parser.add_argument(
-        "--rmsd_plddt",
-        action="store_true",
-        help="""Plot the RMSD vs pLDDT plot. The RMSD values are caluclated with
-        respect to the model with the highest pLDDT value.""")
-    parser.add_argument("--rmsd_ranks",
-                        type=int,
-                        nargs="+",
-                        help="Ranks that should be used to calcualte RMSDs.",
-                        default=[1])
-    parser.add_argument(
-        "--rmsd_hdbscan",
-        action="store_true",
-        help="Use HDBSCAN clustering while plotting the RMSD vs pLDDT plot.")
-    parser.add_argument("--plddt",
-                        action="store_true",
-                        help="Plot pLDDT values for all predictions.")
-    parser.add_argument("--pae",
-                        action="store_true",
-                        help="Plot PAE graphs for all predictions.")
-    parser.add_argument(
-        "--plddt_hist",
-        action="store_true",
-        help="Graph a histogram for the mean pLDDT values of each model.")
-
-    parser.add_argument("--plot_all",
-                        action="store_true",
-                        help="Plot all possible graphs.")
-
-    args = parser.parse_args()
-
-    return {
-        "af_dir": args.af_dir,
-        "fig_dir": args.fig_dir,
-        "process_number": args.process_number,
-        "plot_rmsd_plddt": args.rmsd_plddt,
-        "use_rmsd_hdbscan": args.rmsd_hdbscan,
-        "rmsd_ranks": args.rmsd_ranks,
-        "plot_plddt": args.plddt,
-        "plot_pae": args.pae,
-        "plot_plddt_hist": args.plddt_hist,
-        "plot_all": args.plot_all,
-        "msa_subsample": args.msa_subsample,
-        "msaPath": args.msa_path,
-        "same_dir": args.same_dir
-    }
-
-
-def plot_pred(pred: AFPrediction, args_dict: dict, fig_path: Path,
+def plot_pred(pred: AFPrediction, what2plot, fig_path: Path,
               pred_ind: int) -> None:
     plotter = AFPlotter()
-
-    if args_dict["plot_plddt"] or args_dict["plot_all"]:
-        save_fig(plotter.plot_plddt(pred),
-                 fig_path / f"{pred_ind}-{pred.name}_plddt")
-
-    if args_dict["plot_pae"] or args_dict["plot_all"]:
-        save_fig(plotter.plot_pae(pred),
-                 fig_path / f"{pred_ind}-{pred.name}_pae")
+    for p in what2plot:
+        match p:
+            case "pred_plddt":
+                save_fig(plotter.plot_plddt(pred),
+                         fig_path / f"{pred_ind}-{pred.name}_plddt")
+            case "pae":
+                save_fig(plotter.plot_pae(pred),
+                         fig_path / f"{pred_ind}-{pred.name}_pae")
 
 
 def plot_pred_wrapper(args: tuple) -> None:
-    pred, args_dict, fig_path, pred_ind = args
+    pred, what2plot, fig_path, pred_ind = args
     plot_pred(pred=pred,
-              args_dict=args_dict,
+              what2plot=what2plot,
               fig_path=fig_path,
               pred_ind=pred_ind)
 
@@ -110,63 +44,172 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
     fig.savefig(path_wo_ext.with_suffix(".pdf"), bbox_inches="tight")
 
 
-def cli() -> None:
-    args_dict = get_args()
-
-    if args_dict["msa_subsample"]:
-        if args_dict["msaPath"] == "-1":
-            emsg = "No MSA path is given\n"
-            sys.stderr.write(emsg)
-            sys.exit(1)
-        elif not Path(args_dict["msaPath"]).is_file():
-            emsg = f"Given MSA file path is not a file: {args_dict['msaPath']}\n"
-            sys.stderr.write(emsg)
-            sys.exit(1)
-
-        msa = colabfold_msa.ColabfoldMSA(args_dict["msaPath"],
-                                         args_dict["same_dir"])
-        for i in range(10):
-            msa.sample_records(2**i, 5)
-
-        sys.exit(0)
-
-    fig_path = Path(args_dict["fig_dir"])
-
-    if fig_path.is_file():
-        emsg = f"ERROR!! Given figure directory is a file: {args_dict['fig_dir']}\n"
+@click.command()
+@click.option("--af_dir",
+              help="AF output directory that will be analyzed",
+              type=click.Path(exists=True,
+                              file_okay=False,
+                              readable=True,
+                              resolve_path=True,
+                              path_type=Path))
+@click.option("--fig_dir",
+              help="Output directory for figures",
+              type=click.Path(file_okay=False,
+                              writable=True,
+                              resolve_path=True,
+                              path_type=Path))
+@click.option("-n",
+              "--process_count",
+              help="Process count",
+              default=1,
+              type=click.IntRange(min=1))
+@click.option("--save_pickle",
+              "pickle_save_path",
+              help="Directory to save analysis results as a pickle",
+              type=click.Path(file_okay=False,
+                              writable=True,
+                              resolve_path=True,
+                              path_type=Path))
+@click.option("--load_pickle",
+              "pickle_load_path",
+              help="Path of pickle that includes the analysis results.",
+              type=click.Path(dir_okay=False,
+                              readable=True,
+                              resolve_path=True,
+                              path_type=Path))
+@click.option("--plot",
+              "plot_types",
+              help="Plot a selected type of graph",
+              type=click.Choice(plots := [
+                  "pred_plddt", "plddt_hist", "pae", "RMSDs", "RMSD_plddt"
+              ],
+                                case_sensitive=False),
+              multiple=True)
+@click.option("--plot_all",
+              help="Plot all graphs",
+              is_flag=True,
+              default=False)
+@click.option("--ref_structure",
+              help=("Not yet implemented. Reference structure for RMSD"
+                    "calculations. Uses the model"
+                    "with th highest pLDDT by default"))
+def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
+            pickle_save_path: Path | None, pickle_load_path: Path | None,
+            plot_types: tuple[str], plot_all: bool,
+            ref_structure: str | None) -> None:
+    if pickle_load_path is not None and af_dir is not None:
+        emsg = "Error: --af_dir is mutually exclusive with --load_pickle."
         sys.stderr.write(emsg)
         sys.exit(1)
-    elif not fig_path.is_dir():
-        wmsg = f"""WARNING: Given figure output directory {args_dict['fig_dir']} does not
-        exist. Creating necessary directories."""
-        print(wmsg)
+    elif pickle_load_path is None and af_dir is None:
+        emsg = ("Error: Neither --af_dir or --load_pickle is given. There is"
+                "no output to analyze.")
+        sys.stderr.write(emsg)
+        sys.exit(1)
 
-        fig_path.mkdir(parents=True)
+    if fig_dir is None and (plot_all or plot_types is not None):
+        emsg = "No figure directory is given. Can't plot the wanted plots."
+        sys.stderr.write(emsg)
+        sys.exit(1)
 
-    afoutput = AFParser(
-        path=args_dict["af_dir"],
-        process_number=args_dict["process_number"]).get_output()
+    afoutput: AFOutput | None = None
+    if af_dir is not None:
+        afoutput = AFParser(path=af_dir,
+                            process_number=process_count).get_output()
+    elif pickle_load_path is not None:
+        with open(pickle_load_path, "rb") as pickle_load_fh:
+            afoutput = pickle.load(pickle_load_fh)
+    assert afoutput is not None
 
-    if args_dict["plot_rmsd_plddt"] or args_dict["plot_all"]:
-        rank_ind = [x - 1 for x in args_dict["rmsd_ranks"]]
-        rmsds, plddts = afoutput.calculate_rmsds_plddts(rank_indeces=rank_ind)
-        if args_dict["use_rmsd_hdbscan"] or args_dict["plot_all"]:
-            hbscan = afoutput.get_rmsd_plddt_hbscan(rmsds=rmsds, plddts=plddts)
-            fig = afoutput.plot_rmsd_plddt(rmsds=rmsds,
-                                           plddts=plddts,
-                                           hbscan=hbscan)
-            save_fig(fig=fig, path_wo_ext=fig_path / "rmsd_plddt_hdbscan")
-        if not args_dict["use_rmsd_hdbscan"] or args_dict["plot_all"]:
-            fig = afoutput.plot_rmsd_plddt(rmsds=rmsds, plddts=plddts)
-            save_fig(fig=fig, path_wo_ext=fig_path / "rmsd_plddt")
+    what2plot = plots if plot_all else plot_types
 
-    if args_dict["plot_plddt_hist"] or args_dict["plot_all"]:
-        fig = afoutput.plot_plddt_hist()
-        save_fig(fig=fig, path_wo_ext=fig_path / "plddt_hist")
+    if fig_dir is not None:
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        plotter = AFPlotter()
 
-    with multiprocessing.Pool(processes=args_dict["process_number"]) as pool:
+        if "plddt_hist" in what2plot:
+            fig = afoutput.plot_plddt_hist()
+            save_fig(fig=fig, path_wo_ext=fig_dir / "plddt_hist")
+        if "RMSDs" in what2plot:
+            afoutput.rmsds = afoutput.calculate_rmsds(rank_index=0)
+            fig = plotter.plot_upper_trig(afoutput.rmsds)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "rmsds")
+        if "RMSD_plddt" in what2plot:
+            if ref_structure is not None:
+                rmsds, plddts = afoutput.calculate_rmsds_plddts()
+                hbscan = afoutput.get_rmsd_plddt_hbscan(rmsds, plddts)
+                fig_nohbscan = afoutput.plot_rmsd_plddt(rmsds, plddts)
+                fig_hbscan = afoutput.plot_rmsd_plddt(rmsds, plddts, hbscan)
+
+                save_fig(fig=fig_nohbscan, path_wo_ext=fig_dir / "rmsd_plddt")
+                save_fig(fig=fig_hbscan,
+                         path_wo_ext=fig_dir / "rmsd_plddt_hdbscan")
+            else:
+                # TODO
+                emsg = "Using a reference structure is not yet implemented."
+                sys.stderr.write(emsg)
+                sys.exit(1)
+
+    with multiprocessing.Pool(processes=process_count) as pool:
         for _ in pool.imap_unordered(
                 plot_pred_wrapper,
-            [(pred, args_dict, fig_path, pred_ind)
+            [(pred, what2plot, fig_dir, pred_ind)
              for pred_ind, pred in enumerate(afoutput.predictions)]):
             pass
+
+    if pickle_save_path is not None:
+        with open(pickle_save_path / "af_tools_afoutput.pickle",
+                  "wb") as pickle_save_fh:
+            pickle.dump(afoutput, pickle_save_fh)
+
+
+@click.command()
+@click.option("--msa_path",
+              help="Path of the MSA file.",
+              type=click.Path(exists=True,
+                              dir_okay=False,
+                              readable=True,
+                              resolve_path=True,
+                              path_type=Path),
+              required=True)
+@click.option("--out_dir",
+              help="Directory for subsampled msa files.",
+              type=click.Path(file_okay=False,
+                              readable=True,
+                              resolve_path=True,
+                              path_type=Path))
+@click.option("--msa_length_2",
+              help="Set the maximum MSA length to 2**[msa_length_2]",
+              type=click.IntRange(min=1),
+              default=9)
+@click.option("--replicate_count",
+              help="Number of generated MSAs with the same length.",
+              type=click.IntRange(min=1),
+              default=5)
+def subsample_msa(msa_path, out_dir: Path | None, msa_length_2: int,
+                  replicate_count: int) -> None:
+    if msa_path.suffix != ".a3m":
+        emsg = (f"Given MSA file {msa_path.name} has a different filetype than"
+                "a3m. Only a3m files are supported.")
+        sys.stderr.write(emsg)
+        sys.exit(1)
+
+    if out_dir is None:
+        out_dir = Path(msa_path.parent)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    msa = ColabfoldMSA(msa_path)
+    for i in range(msa_length_2 + 1):
+        msa.sample_records(sample_lenght=2**i,
+                           sample_count=replicate_count,
+                           output_dir=out_dir,
+                           save_samples=True)
+
+
+@click.group(context_settings={'show_default': True})
+def cli() -> None:
+    pass
+
+
+cli.add_command(analyze)
+cli.add_command(subsample_msa)
