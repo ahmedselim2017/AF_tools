@@ -176,9 +176,11 @@ class AFPlotter:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 
+        print(matrix[0, 0])
         mask = np.triu(np.ones((matrix.shape[0], matrix.shape[0])))
-        np.fill_diagonal(mask, 1)
+        np.fill_diagonal(mask, 0)
         matrix = np.ma.array(matrix, mask=mask)
+        print(matrix[0, 0])
 
         cmap = matplotlib.colormaps["plasma"]
         cmap.set_bad('w')

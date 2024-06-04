@@ -76,7 +76,9 @@ class AFOutput:
         return fig
 
     def calculate_rmsds(self, rank_index: int = 0) -> NDArray:
-        rmsds = np.full((len(self.predictions), len(self.predictions)), -99.0)
+        rmsds = np.full((len(self.predictions), len(self.predictions)),
+                        np.nan,
+                        dtype=float)
 
         model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
 
@@ -110,7 +112,9 @@ class AFOutput:
             raise Exception(
                 "ERROR: USalign can't be found. Can't calcualte TM values.")
 
-        tms = np.full((len(self.predictions), len(self.predictions)), -99.0)
+        tms = np.full((len(self.predictions), len(self.predictions)),
+                      np.nan,
+                      dtype=float)
         model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
 
         for i, pred in enumerate(self.predictions):
@@ -143,7 +147,9 @@ class AFOutput:
             rank_indeces = range(len(self.predictions[0].models))
 
         model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
-        plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
+        plddts = np.full(len(self.predictions) * len(rank_indeces),
+                         np.nan,
+                         dtype=float)
 
         for i, pred in enumerate(self.predictions):
             for j, rank_index in enumerate(rank_indeces):
@@ -164,7 +170,7 @@ class AFOutput:
 
         assert ref_structure
 
-        rmsds = np.full(len(model_paths), -1.0)
+        rmsds = np.full(len(model_paths), np.nan, dtype=float)
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
@@ -211,7 +217,9 @@ class AFOutput:
                                      hbscan: HDBSCAN) -> tuple:
         model_paths = np.empty(len(self.predictions) * len(rank_indeces),
                                dtype=np.dtypes.StrDType)
-        plddts = np.empty(len(self.predictions) * len(rank_indeces))
+        plddts = np.full(len(self.predictions) * len(rank_indeces),
+                         np.nan,
+                         dtype=float)
 
         for i, pred in enumerate(self.predictions):
             for j, rank_index in enumerate(rank_indeces):
@@ -228,7 +236,7 @@ class AFOutput:
         clusters = clusters[clusters != 1]
 
         cluster_paths: list[NDArray] = []
-        cluster_plddts = np.empty(len(clusters))
+        cluster_plddts = np.full(len(clusters), np.nan, dtype=float)
         for i, cluster in enumerate(clusters):
             selected_indices = np.where(hbscan.labels_ == cluster)
             cluster_plddts[i] = np.mean(plddts[selected_indices])
