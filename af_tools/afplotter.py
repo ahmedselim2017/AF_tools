@@ -169,8 +169,10 @@ class AFPlotter:
         fig.tight_layout()
         return fig
 
-    def plot_upper_trig(self, matrix: NDArray,
-                        labels: list[str]) -> matplotlib.figure.Figure:
+    def plot_upper_trig(
+            self,
+            matrix: NDArray,
+            labels: list[str] | None = None) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 

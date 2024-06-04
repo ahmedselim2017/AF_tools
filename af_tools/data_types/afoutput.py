@@ -1,6 +1,7 @@
 import multiprocessing as mp
 from pathlib import Path
 from itertools import batched
+import pickle
 from typing import Sequence
 
 from matplotlib.figure import Figure
@@ -26,7 +27,9 @@ class AFOutput:
         self.process_number = process_number
         self.search_recursively = search_recursively
         self.predictions = self.get_predictions()
+
         self.rmsds: NDArray | None = None
+        self.pickle_path: Path | None = None
 
     def check_path(self, path: str | Path) -> Path:
         if isinstance(path, str):
@@ -101,10 +104,13 @@ class AFOutput:
 
     def calculate_rmsds_plddts(
         self,
-        rank_indeces: list[int] | range,
+        rank_indeces: list[int] | range | None = None,
         ref_index: int | None = None,
         ref_structure: Structure | None = None,
     ) -> tuple[NDArray, NDArray]:
+
+        if rank_indeces is None:
+            rank_indeces = range(len(self.predictions[0].models))
 
         model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
         plddts = np.full(len(self.predictions) * len(rank_indeces), 0.0)
@@ -120,6 +126,7 @@ class AFOutput:
                     model_paths[i * len(rank_indeces) + j] = model.model_path
 
         if ref_structure is None and ref_index is None:
+            # TODO: isnt the plddts are already sorted?
             max_plddt_ind = np.argmax(plddts)
             ref_structure = utils.load_structure(model_paths[max_plddt_ind])
         elif ref_index:
