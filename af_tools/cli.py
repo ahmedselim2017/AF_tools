@@ -81,7 +81,8 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
               "plot_types",
               help="Plot a selected type of graph",
               type=click.Choice(plots := [
-                  "pred_plddt", "plddt_hist", "pae", "RMSDs", "RMSD_plddt"
+                  "pred_plddt", "plddt_hist", "pae", "RMSDs", "TMs",
+                  "RMSD_plddt"
               ],
                                 case_sensitive=False),
               multiple=True)
@@ -116,6 +117,7 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
     if af_dir is not None:
         afoutput = AFParser(path=af_dir,
                             process_number=process_count).get_output()
+        print(len(afoutput.predictions[0].models))
     elif pickle_load_path is not None:
         with open(pickle_load_path, "rb") as pickle_load_fh:
             afoutput = pickle.load(pickle_load_fh)
@@ -131,9 +133,15 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
             fig = afoutput.plot_plddt_hist()
             save_fig(fig=fig, path_wo_ext=fig_dir / "plddt_hist")
         if "RMSDs" in what2plot:
-            afoutput.rmsds = afoutput.calculate_rmsds(rank_index=0)
+            if afoutput.rmsds is None:
+                afoutput.rmsds = afoutput.calculate_rmsds(rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.rmsds)
             save_fig(fig=fig, path_wo_ext=fig_dir / "rmsds")
+        if "TMs" in what2plot:
+            if afoutput.tms is None:
+                afoutput.tms = afoutput.calculate_tms(rank_index=0)
+            fig = plotter.plot_upper_trig(afoutput.tms)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "tms")
         if "RMSD_plddt" in what2plot:
             if ref_structure is not None:
                 rmsds, plddts = afoutput.calculate_rmsds_plddts()

@@ -2,6 +2,7 @@ import multiprocessing as mp
 from pathlib import Path
 from itertools import batched
 import pickle
+import subprocess
 from typing import Sequence
 
 from matplotlib.figure import Figure
@@ -29,6 +30,7 @@ class AFOutput:
         self.predictions = self.get_predictions()
 
         self.rmsds: NDArray | None = None
+        self.tms: NDArray | None = None
         self.pickle_path: Path | None = None
 
     def check_path(self, path: str | Path) -> Path:
@@ -73,8 +75,8 @@ class AFOutput:
 
         return fig
 
-    def calculate_rmsds(self, rank_index: int = 0):
-        rmsds = np.full((len(self.predictions), len(self.predictions)), -99)
+    def calculate_rmsds(self, rank_index: int = 0) -> NDArray:
+        rmsds = np.full((len(self.predictions), len(self.predictions)), -99.0)
 
         model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
 
@@ -101,6 +103,34 @@ class AFOutput:
                     rmsds[result[0][0], result[0][1]] = result[1]
 
         return rmsds
+
+    def calculate_tms(self, rank_index: int = 0) -> NDArray:
+        from shutil import which
+        if which("USalign") is None:
+            raise Exception(
+                "ERROR: USalign can't be found. Can't calcualte TM values.")
+
+        tms = np.full((len(self.predictions), len(self.predictions)), -99.0)
+        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
+
+        for i, pred in enumerate(self.predictions):
+            model = pred.models[rank_index]
+            if hasattr(model, "relaxed_pdb_path"):
+                model_paths[i] = str(model.relaxed_pdb_path)
+            else:
+                model_paths[i] = str(model.model_path)
+
+        # TODO multiprocessing?
+
+        for i, m1 in enumerate(tqdm(model_paths)):
+            for j, m2 in enumerate(tqdm(model_paths, leave=False)):
+                if i < j:
+                    tms[i][j] = 1
+                p = subprocess.run(["USalign", "-outfmt", "2", m1, m2],
+                                   capture_output=True,
+                                   text=True)
+                tms[i][j] = float(p.stdout.split("\n")[1].split()[3])
+        return tms
 
     def calculate_rmsds_plddts(
         self,
