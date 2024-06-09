@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Sequence
 import operator
 
+from natsort import natsorted
 import numpy as np
 from numpy.typing import NDArray
 import orjson
@@ -21,12 +22,14 @@ class AF2Output(AFOutput):
                  process_number: int = 1,
                  search_recursively: bool = False,
                  is_colabfold: bool = True,
+                 sort_plddt: bool = True,
                  **kwargs):
 
         self.is_colabfold = is_colabfold
         super().__init__(path=path,
                          process_number=process_number,
-                         search_recursively=search_recursively)
+                         search_recursively=search_recursively,
+                         sort_plddt=sort_plddt)
 
     def get_predictions(self) -> Sequence[AF2Prediction]:
         if self.is_colabfold:
@@ -43,7 +46,8 @@ class AF2Output(AFOutput):
         num_ranks = config_data["num_models"]
 
         # predictions: list[AF2Prediction] = []
-        for pred_done_path in colabfold_dir.glob("*.done.txt"):
+        for pred_done_path in natsorted(list(
+                colabfold_dir.glob("*.done.txt"))):
             pred_name = pred_done_path.name.split(".")[0]
 
             with open(colabfold_dir / f"{pred_name}.a3m", "r") as msa_file:
@@ -68,11 +72,11 @@ class AF2Output(AFOutput):
                 else:
                     chain_ends.append(chain_len + chain_ends[-1])
 
-            model_unrel_paths = sorted(
+            model_unrel_paths = natsorted(
                 colabfold_dir.glob(f"{pred_name}_unrelaxed_rank_*.pdb"))
-            model_rel_paths = sorted(
+            model_rel_paths = natsorted(
                 colabfold_dir.glob(f"{pred_name}_relaxed_rank_*.pdb"))
-            score_paths = sorted(
+            score_paths = natsorted(
                 colabfold_dir.glob(f"{pred_name}_scores_rank_*.json"))
 
             models: list[AF2Model] = []
@@ -101,6 +105,7 @@ class AF2Output(AFOutput):
                         residue_plddts=plddt,
                         chain_ends=chain_ends,
                     ))
+
             predictions.append(
                 AF2Prediction(
                     name=pred_name,
@@ -138,9 +143,10 @@ class AF2Output(AFOutput):
         else:
             predictions = self.get_preds_from_colabfold_dir(self.path)
 
-        predictions = sorted(predictions,
-                             reverse=True,
-                             key=operator.attrgetter("best_mean_plddt"))
+        if self.sort_plddt:
+            predictions = sorted(predictions,
+                                 reverse=True,
+                                 key=operator.attrgetter("best_mean_plddt"))
 
         return predictions
 

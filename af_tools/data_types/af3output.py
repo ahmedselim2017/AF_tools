@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 import orjson
 from tqdm import tqdm
+from natsort import natsorted
 
 from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
@@ -18,9 +19,10 @@ class AF3Output(AFOutput):
 
     def get_preds_from_af3_dir(self, af3dir: Path) -> list[AF3Prediction]:
         af_version = "alphafold3"
-        full_data_paths = sorted(af3dir.rglob("*_full_data*.json"))
-        summary_data_paths = sorted(af3dir.glob("*summary_confidences_*.json"))
-        model_paths = sorted(af3dir.glob("*.cif"))
+        full_data_paths = natsorted(af3dir.rglob("*_full_data*.json"))
+        summary_data_paths = natsorted(
+            af3dir.glob("*summary_confidences_*.json"))
+        model_paths = natsorted(af3dir.glob("*.cif"))
 
         pred_name = full_data_paths[0].name.split("_full_data_")[0]
         models: list[AF3Model] = []
@@ -89,14 +91,12 @@ class AF3Output(AFOutput):
                     token_chain_ends=token_chain_ends,
                 ))
         return [
-            AF3Prediction(
-                name=pred_name,
-                num_ranks=len(models),
-                af_version=af_version,
-                models=models,
-                best_mean_plddt=models[0].mean_plddt,
-                is_colabfold=False,
-            )
+            AF3Prediction(name=pred_name,
+                          num_ranks=len(models),
+                          af_version=af_version,
+                          models=models,
+                          best_mean_plddt=models[0].mean_plddt,
+                          is_colabfold=False)
         ]
 
     def get_predictions(self) -> Sequence[AF3Prediction]:
@@ -124,7 +124,8 @@ class AF3Output(AFOutput):
         else:
             predictions = self.get_preds_from_af3_dir(self.path)
 
-        predictions = sorted(predictions,
-                             reverse=True,
-                             key=operator.attrgetter("best_mean_plddt"))
+        if self.sort_plddt:
+            predictions = sorted(predictions,
+                                 reverse=True,
+                                 key=operator.attrgetter("best_mean_plddt"))
         return predictions
