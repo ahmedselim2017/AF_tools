@@ -1,4 +1,5 @@
 from functools import singledispatch
+import subprocess
 from typing import Any
 from pathlib import Path
 from typing import Sequence
@@ -66,6 +67,32 @@ def _(target_model: list[Path] | list[Structure],
     for i, target_model_p in enumerate(target_model):
         rmsds[i] = calculate_rmsd(target_model_p, ref_model)
     return rmsds
+
+
+@singledispatch
+def calculate_tm(target_model: Any, ref_model: Path) -> float | NDArray:
+    raise NotImplementedError(
+        (f"Argument type {type(target_model)} for target_model_path is"
+         "not implemented for calculate_rmsd function."))
+
+
+@calculate_tm.register
+def _(target_model: Path, ref_model: Path) -> float | NDArray:
+    cmd = [
+        "USalign", "-outfmt", "2",
+        str(target_model.absolute()),
+        str(ref_model.absolute())
+    ]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    return float(p.stdout.split("\n")[1].split()[3])
+
+
+@calculate_tm.register
+def _(target_model: list[Path], ref_model: Path) -> float | NDArray:
+    tms = np.full(len(target_model), np.nan, dtype=float)
+    for i, target_model_p in enumerate(target_model):
+        tms[i] = calculate_tm(target_model_p, ref_model)
+    return tms
 
 
 def worker_af2output_get_pred(path: Path) -> Sequence[AF2Prediction]:
