@@ -139,35 +139,57 @@ class AFOutput:
 
         return ref_rmsds
 
-    def calculate_all_vs_all_tms(self, rank_index: int = 0) -> NDArray:
+    def calculate_pairwise_tms(self, rank_index: int) -> NDArray:
         from shutil import which
         if which("USalign") is None:
-            raise Exception(
-                "ERROR: USalign can't be found. Can't calcualte TM values.")
+            raise FileNotFoundError(
+                "USalign executable can't be found on PATH.")
 
         tms = np.full((len(self.predictions), len(self.predictions)),
                       np.nan,
                       dtype=float)
-        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
+        model_paths = self.get_rank_paths(rank_index)
 
-        for i, pred in enumerate(self.predictions):
-            model = pred.models[rank_index]
-            if hasattr(model, "relaxed_pdb_path"):
-                model_paths[i] = str(model.relaxed_pdb_path)
-            else:
-                model_paths[i] = str(model.model_path)
+        if self.process_number > 1:
+            with mp.Pool(processes=self.process_number) as pool:
+                results = pool.starmap(
+                    utils.calculate_tm,
+                    tqdm([(model_paths[i + 1:], m)
+                          for i, m in enumerate(model_paths[:-1])],
+                         total=len(model_paths),
+                         desc="Calculating pairwise TMs"))
 
-        # TODO multiprocessing?
+                for i, result in enumerate(results):
+                    tms[i, i + 1:] = result
+        else:
+            pbar_mpaths = tqdm(model_paths[:-1])
+            for i, m in enumerate(pbar_mpaths):
+                pbar_mpaths.desc = f"Calculating pairwise TMs of{m.name}"
+                tms[i, i + 1:] = utils.calculate_tm(model_paths[i + 1:], m)
 
-        for i, m1 in enumerate(tqdm(model_paths)):
-            for j, m2 in enumerate(tqdm(model_paths, leave=False)):
-                if i < j:
-                    tms[i][j] = 1
-                p = subprocess.run(["USalign", "-outfmt", "2", m1, m2],
-                                   capture_output=True,
-                                   text=True)
-                tms[i][j] = float(p.stdout.split("\n")[1].split()[3])
         return tms
+
+    def calculate_ref_tms(self, rank_index: int):
+        ref_tms = np.full(len(self.predictions), np.nan, dtype=float)
+        model_paths = self.get_rank_paths(rank_index)
+
+        if self.ref_path is None:
+            raise TypeError("No path for reference structure is given")
+
+        if self.process_number > 1:
+            with mp.Pool(processes=self.process_number) as pool:
+                ref_tms = pool.starmap(
+                    utils.calculate_tm,
+                    tqdm([(m, self.ref_path) for m in model_paths],
+                         total=len(model_paths),
+                         desc="Calculating reference TMs"))
+        else:
+            pbar_mpaths = tqdm(model_paths)
+            for i, m in enumerate(pbar_mpaths):
+                pbar_mpaths.desc = f"Calculating reference TMs of {m.name}"
+                ref_tms[i] = utils.calculate_rmsd(m, self.ref_path)
+
+        return ref_tms
 
     def calculate_rmsds_plddts(
         self,
