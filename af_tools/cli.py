@@ -134,12 +134,13 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
             save_fig(fig=fig, path_wo_ext=fig_dir / "plddt_hist")
         if "RMSDs" in what2plot:
             if afoutput.rmsds is None:
-                afoutput.rmsds = afoutput.calculate_rmsds(rank_index=0)
+                afoutput.rmsds = afoutput.calculate_all_vs_all_rmsds(
+                    rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.rmsds)
             save_fig(fig=fig, path_wo_ext=fig_dir / "rmsds")
         if "TMs" in what2plot:
             if afoutput.tms is None:
-                afoutput.tms = afoutput.calculate_tms(rank_index=0)
+                afoutput.tms = afoutput.calculate_all_vs_all_tms(rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.tms)
             save_fig(fig=fig, path_wo_ext=fig_dir / "tms")
         if "RMSD_plddt" in what2plot:

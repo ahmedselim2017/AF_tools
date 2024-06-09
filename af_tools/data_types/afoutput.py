@@ -23,10 +23,13 @@ class AFOutput:
     def __init__(self,
                  path: str | Path,
                  process_number: int = 1,
-                 search_recursively: bool = False):
+                 search_recursively: bool = False,
+                 sort_plddt: bool = True):
         self.path = self.check_path(path)
         self.process_number = process_number
         self.search_recursively = search_recursively
+        self.sort_plddt = sort_plddt
+
         self.predictions = self.get_predictions()
 
         self.rmsds: NDArray | None = None
@@ -75,7 +78,27 @@ class AFOutput:
 
         return fig
 
-    def calculate_rmsds(self, rank_index: int = 0) -> NDArray:
+    def calculate_pred_ref_rmsds(self):
+        """Calculates the RMSD between a prediction and its ref"""
+        if self.process_number > 1:
+            with mp.Pool(processes=self.process_number) as pool:
+                results = tqdm(pool.imap_unordered(
+                    utils.worker_wrapper_pred_ref_rmsd,
+                    [(pred, index)
+                     for index, pred in enumerate(self.predictions)]),
+                               total=len(self.predictions),
+                               desc="Calculating RMSDS with refs")
+
+                for result in results:
+                    self.predictions[result[1]].reference_rmsds = result[0]
+        else:
+            print("TODO: calculate_pred_ref_rmsds")
+            exit(1)
+
+        # ref_structure = utils.load_structure(str(ref_structure_path))
+        # pbar = tqdm(self.predictions)
+
+    def calculate_all_vs_all_rmsds(self, rank_index: int = 0) -> NDArray:
         rmsds = np.full((len(self.predictions), len(self.predictions)),
                         np.nan,
                         dtype=float)
@@ -103,10 +126,13 @@ class AFOutput:
                                total=len(jobs))
                 for result in results:
                     rmsds[result[0][0], result[0][1]] = result[1]
+        else:
+            print("TODO: calculate_all_vs_all_rmsds")
+            exit(1)
 
         return rmsds
 
-    def calculate_tms(self, rank_index: int = 0) -> NDArray:
+    def calculate_all_vs_all_tms(self, rank_index: int = 0) -> NDArray:
         from shutil import which
         if which("USalign") is None:
             raise Exception(
