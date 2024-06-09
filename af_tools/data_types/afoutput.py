@@ -21,11 +21,13 @@ from af_tools import utils
 class AFOutput:
 
     def __init__(self,
-                 path: str | Path,
+                 path: Path,
+                 ref_path: Path | None = None,
                  process_number: int = 1,
                  search_recursively: bool = False,
                  sort_plddt: bool = True):
         self.path = self.check_path(path)
+        self.ref_path = ref_path
         self.process_number = process_number
         self.search_recursively = search_recursively
         self.sort_plddt = sort_plddt
@@ -78,59 +80,64 @@ class AFOutput:
 
         return fig
 
-    def calculate_pred_ref_rmsds(self):
-        """Calculates the RMSD between a prediction and its ref"""
-        if self.process_number > 1:
-            with mp.Pool(processes=self.process_number) as pool:
-                results = tqdm(pool.imap_unordered(
-                    utils.worker_wrapper_pred_ref_rmsd,
-                    [(pred, index)
-                     for index, pred in enumerate(self.predictions)]),
-                               total=len(self.predictions),
-                               desc="Calculating RMSDS with refs")
+    def get_rank_paths(self, rank_index: int) -> list[Path]:
+        model_paths: list[Path] = []
+        for pred in self.predictions:
+            model = pred.models[rank_index]
+            if hasattr(model, "relaxed_pdb_path"):
+                model_paths.append(model.relaxed_pdb_path)
+            else:
+                model_paths.append(model.model_path)
+        return model_paths
 
-                for result in results:
-                    self.predictions[result[1]].reference_rmsds = result[0]
-        else:
-            print("TODO: calculate_pred_ref_rmsds")
-            exit(1)
-
-        # ref_structure = utils.load_structure(str(ref_structure_path))
-        # pbar = tqdm(self.predictions)
-
-    def calculate_all_vs_all_rmsds(self, rank_index: int = 0) -> NDArray:
+    def calculate_pairwise_rmsds(self, rank_index: int) -> NDArray:
         rmsds = np.full((len(self.predictions), len(self.predictions)),
                         np.nan,
                         dtype=float)
-
-        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
-
-        for i, pred in enumerate(self.predictions):
-            model = pred.models[rank_index]
-            if hasattr(model, "relaxed_pdb_path"):
-                model_paths[i] = str(model.relaxed_pdb_path)
-            else:
-                model_paths[i] = str(model.model_path)
+        model_paths = self.get_rank_paths(rank_index)
 
         if self.process_number > 1:
-            jobs = []
-            for i, m1 in enumerate(model_paths):
-                for j, m2 in enumerate(model_paths):
-                    if i < j:
-                        continue
-                    jobs.append((m1, m2, (i, j)))
             with mp.Pool(processes=self.process_number) as pool:
-                results = tqdm(pool.imap_unordered(
-                    utils.worker_wrapper_calculate_rmsd, jobs),
-                               desc="Calculating RMSDs",
-                               total=len(jobs))
-                for result in results:
-                    rmsds[result[0][0], result[0][1]] = result[1]
+                results = pool.starmap(
+                    utils.calculate_rmsd,
+                    tqdm([(model_paths[i + 1:], m)
+                          for i, m in enumerate(model_paths[:-1])],
+                         total=len(model_paths),
+                         desc="Calculating pairwise RMSDs"))
+
+                for i, result in enumerate(results):
+                    rmsds[i, i + 1:] = result
         else:
-            print("TODO: calculate_all_vs_all_rmsds")
-            exit(1)
+            pbar_mpaths = tqdm(model_paths[:-1])
+            for i, m in enumerate(pbar_mpaths):
+                pbar_mpaths.desc = f"Calculating pairwise RMSDs of{m.name}"
+                rmsds[i, i + 1:] = utils.calculate_rmsd(model_paths[i + 1:], m)
 
         return rmsds
+
+    def calculate_ref_rmsds(self, rank_index: int):
+        ref_rmsds = np.full(len(self.predictions), np.nan, dtype=float)
+        model_paths = self.get_rank_paths(rank_index)
+
+        if self.ref_path is None:
+            raise TypeError("No path for reference structure is given")
+
+        ref_structure = utils.load_structure(self.ref_path)
+
+        if self.process_number > 1:
+            with mp.Pool(processes=self.process_number) as pool:
+                ref_rmsds = pool.starmap(
+                    utils.calculate_rmsd,
+                    tqdm([(m, ref_structure) for m in model_paths],
+                         total=len(model_paths),
+                         desc="Calculating reference RMSDs"))
+        else:
+            pbar_mpaths = tqdm(model_paths)
+            for i, m in enumerate(pbar_mpaths):
+                pbar_mpaths.desc = f"Calculating reference RMSDs of {m.name}"
+                ref_rmsds[i] = utils.calculate_rmsd(m, ref_structure)
+
+        return ref_rmsds
 
     def calculate_all_vs_all_tms(self, rank_index: int = 0) -> NDArray:
         from shutil import which
