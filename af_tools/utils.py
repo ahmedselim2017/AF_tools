@@ -26,10 +26,10 @@ def load_structure(path: Path) -> Structure:
 
 
 @singledispatch
-def calculate_rmsd(target_model_path: Any,
-                   ref_model_path: str) -> float | NDArray:
+def calculate_rmsd(target_model: Any,
+                   ref_model: Path | Structure) -> float | NDArray:
     raise NotImplementedError(
-        (f"Argument type {type(target_model_path)} for target_model_path is"
+        (f"Argument type {type(target_model)} for target_model_path is"
          "not implemented for calculate_rmsd function."))
 
 
@@ -60,10 +60,11 @@ def _(target_model: Path | Structure,
 
 
 @calculate_rmsd.register
-def _(target_model_path: list[str], ref_model_path: str) -> float | NDArray:
-    rmsds = np.full(len(target_model_path), np.nan, dtype=float)
-    for i, target_model_p in enumerate(target_model_path):
-        rmsds[i] = calculate_rmsd(target_model_p, ref_model_path)
+def _(target_model: list[Path] | list[Structure],
+      ref_model: Path | Structure) -> float | NDArray:
+    rmsds = np.full(len(target_model), np.nan, dtype=float)
+    for i, target_model_p in enumerate(target_model):
+        rmsds[i] = calculate_rmsd(target_model_p, ref_model)
     return rmsds
 
 
