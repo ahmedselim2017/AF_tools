@@ -1,18 +1,16 @@
-from dataclasses import dataclass
 import multiprocessing
 import operator
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
-from numpy.typing import NDArray
 import orjson
 from tqdm import tqdm
 from natsort import natsorted
 
 from af_tools import utils
-from af_tools.data_types.afoutput import AFOutput
-from af_tools.output_types import AF3Prediction, AF3Model
+from af_tools.data_types import AFOutput
+from af_tools import AF3Prediction, AF3Model
 
 
 class AF3Output(AFOutput):

@@ -1,9 +1,6 @@
 import multiprocessing as mp
 from pathlib import Path
-from itertools import batched
-import pickle
-import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 from matplotlib.figure import Figure
 import numpy as np
@@ -12,8 +9,8 @@ from numpy.typing import NDArray
 from sklearn.cluster import HDBSCAN
 from tqdm import tqdm
 
-from af_tools.afplotter import AFPlotter
-from af_tools.output_types import AFModel
+from af_tools import AFPlotter
+from af_tools import AFModel
 from af_tools import utils
 
 
