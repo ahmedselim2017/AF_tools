@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from af_tools.data_types import AFOutput
-from af_tools.data_types import AF2Output
-from af_tools.data_types import AF3Output
+from af_tools.data_types.afoutput import AFOutput
+from af_tools.data_types.af2output import AF2Output
+from af_tools.data_types.af3output import AF3Output
 
 
 class AFParser():
