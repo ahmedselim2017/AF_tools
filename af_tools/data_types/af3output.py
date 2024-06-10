@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import multiprocessing
 import operator
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from numpy.typing import NDArray

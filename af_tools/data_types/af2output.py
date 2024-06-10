@@ -1,6 +1,6 @@
 import multiprocessing
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 import operator
 
 from natsort import natsorted
