@@ -2,7 +2,7 @@ from functools import singledispatch
 import subprocess
 from typing import Any
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -61,8 +61,7 @@ def _(target_model: Path | Structure,
 
 
 @calculate_rmsd.register
-def _(target_model: list[Path] | list[Structure],
-      ref_model: Path | Structure) -> float | NDArray:
+def _(target_model: list, ref_model: Path | Structure) -> float | NDArray:
     rmsds = np.full(len(target_model), np.nan, dtype=float)
     for i, target_model_p in enumerate(target_model):
         rmsds[i] = calculate_rmsd(target_model_p, ref_model)
@@ -88,7 +87,7 @@ def _(target_model: Path, ref_model: Path) -> float | NDArray:
 
 
 @calculate_tm.register
-def _(target_model: list[Path], ref_model: Path) -> float | NDArray:
+def _(target_model: list, ref_model: Path) -> float | NDArray:
     tms = np.full(len(target_model), np.nan, dtype=float)
     for i, target_model_p in enumerate(target_model):
         tms[i] = calculate_tm(target_model_p, ref_model)
