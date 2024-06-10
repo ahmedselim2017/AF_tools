@@ -28,15 +28,7 @@ def test_calc_pairwise_rmsds() -> None:
 def test_plot_rmsd_plddt() -> None:
     afoutput = AFParser("./tests/data/colabfold_rmsd",
                         process_number=12).get_output()
-    fig = afoutput.plot_rmsd_plddt()
-    fig.show()
-    input()
-
-
-def test_plot_rmsd_plddt_hdbscan() -> None:
-    afoutput = AFParser("./tests/data/colabfold_rmsd",
-                        process_number=12).get_output()
-    fig = afoutput.plot_rmsd_plddt(hdbscan=True)
+    fig = afoutput.plot_ref_rmsd_plddt()
     fig.show()
     input()
 
@@ -58,5 +50,13 @@ def test_calc_pairwise_tms() -> None:
     tms = afoutput.calculate_pairwise_tms(0)
 
     fig = plotter.plot_upper_trig(tms)
+    fig.show()
+    input()
+
+
+def test_plot_tm_plddt() -> None:
+    afoutput = AFParser("./tests/data/colabfold_rmsd",
+                        process_number=12).get_output()
+    fig = afoutput.plot_ref_tm_plddt()
     fig.show()
     input()

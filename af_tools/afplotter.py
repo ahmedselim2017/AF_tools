@@ -191,15 +191,17 @@ class AFPlotter:
 
         return fig
 
-    def plot_rmsd_plddt(
-            self,
-            rmsds: NDArray,
-            mean_plddts: NDArray,
-            labels: NDArray | None = None) -> matplotlib.figure.Figure:
+    def plot_data_plddt(
+        self,
+        rmsds: NDArray,
+        mean_plddts: NDArray,
+        datalabel: str,
+        labels: NDArray | None = None,
+    ) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 
-        ax.set(xlabel="RMSD", ylabel="pLDDT", ylim=(0, 100))
+        ax.set(xlabel=datalabel, ylabel="pLDDT", ylim=(0, 100))
 
         ax.axhspan(00, 50, facecolor=self.afcolors[0], alpha=0.15)
         ax.axhspan(50, 70, facecolor=self.afcolors[1], alpha=0.15)

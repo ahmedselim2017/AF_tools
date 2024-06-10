@@ -33,8 +33,10 @@ class AFOutput:
 
         self.predictions = self.get_predictions()
 
-        self.rmsds: NDArray | None = None
-        self.tms: NDArray | None = None
+        self.ref_rmsds: NDArray | None = None
+        self.pairwise_rmsds: NDArray | None = None
+        self.ref_tms: NDArray | None = None
+        self.pairwise_tms: NDArray | None = None
         self.pickle_path: Path | None = None
 
     def check_path(self, path: str | Path) -> Path:
@@ -89,6 +91,21 @@ class AFOutput:
                 model_paths.append(model.model_path)
         return model_paths
 
+    def get_ref_path(self, rank_index: int) -> Path:
+        ref_path: Path | None = None
+        if self.ref_path is None:
+            ref_model = max(
+                [pred.models[rank_index] for pred in self.predictions],
+                key=lambda x: x.mean_plddt)
+            if hasattr(ref_model, "relaxed_pdb_path"):
+                ref_path = ref_model.relaxed_pdb_path
+            else:
+                ref_path = ref_model.pdb_path
+        else:
+            ref_path = self.ref_path
+        assert ref_path is not None
+        return ref_path
+
     def calculate_pairwise_rmsds(self, rank_index: int) -> NDArray:
         rmsds = np.full((len(self.predictions), len(self.predictions)),
                         np.nan,
@@ -118,17 +135,7 @@ class AFOutput:
         ref_rmsds = np.full(len(self.predictions), np.nan, dtype=float)
         model_paths = self.get_rank_paths(rank_index)
 
-        if self.ref_path is None:
-            ref_model = max(
-                [pred.models[rank_index] for pred in self.predictions],
-                key=lambda x: x.mean_plddt)
-            if hasattr(ref_model, "relaxed_pdb_path"):
-                ref_structure = utils.load_structure(
-                    ref_model.relaxed_pdb_path)
-            else:
-                ref_structure = utils.load_structure(ref_model.pdb_path)
-        else:
-            ref_structure = utils.load_structure(self.ref_path)
+        ref_structure = utils.load_structure(self.get_ref_path(rank_index))
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
@@ -178,55 +185,76 @@ class AFOutput:
 
         return tms
 
-    def calculate_ref_tms(self, rank_index: int):
+    def calculate_ref_tms(self, rank_index: int) -> NDArray:
         ref_tms = np.full(len(self.predictions), np.nan, dtype=float)
         model_paths = self.get_rank_paths(rank_index)
 
-        if self.ref_path is None:
-            raise TypeError("No path for reference structure is given")
+        ref_path = self.get_ref_path(rank_index)
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
-                ref_tms = pool.starmap(
+                results = pool.starmap(
                     utils.calculate_tm,
-                    tqdm([(m, self.ref_path) for m in model_paths],
+                    tqdm([(m, ref_path) for m in model_paths],
                          total=len(model_paths),
                          desc="Calculating reference TMs"))
+                for i, r in enumerate(results):
+                    ref_tms[i] = r
         else:
             pbar_mpaths = tqdm(model_paths)
             for i, m in enumerate(pbar_mpaths):
                 pbar_mpaths.desc = f"Calculating reference TMs of {m.name}"
-                ref_tms[i] = utils.calculate_rmsd(m, self.ref_path)
+                ref_tms[i] = utils.calculate_rmsd(m, ref_path)
 
         return ref_tms
 
-    def plot_rmsd_plddt(self,
-                        rmsds: NDArray | None = None,
-                        mean_plddts: NDArray | None = None,
+    def plot_ref_rmsd_plddt(self,
+                            rank_index: int = 0,
+                            hdbscan: bool = True) -> Figure:
+        if self.ref_rmsds is None:
+            ref_rmsds = self.calculate_ref_rmsds(rank_index)
+        else:
+            ref_rmsds = self.ref_rmsds
+        return self.plot_data_plddt(ref_rmsds,
+                                    datalabel="RMSD",
+                                    rank_index=rank_index,
+                                    hdbscan=hdbscan)
+
+    def plot_ref_tm_plddt(self,
+                          rank_index: int = 0,
+                          hdbscan: bool = True) -> Figure:
+        if self.ref_tms is None:
+            ref_tms = self.calculate_ref_tms(rank_index)
+        else:
+            ref_tms = self.ref_tms
+        return self.plot_data_plddt(ref_tms,
+                                    datalabel="TM Score",
+                                    rank_index=rank_index,
+                                    hdbscan=hdbscan)
+
+    def plot_data_plddt(self,
+                        data: NDArray,
+                        datalabel: str = "Data",
                         rank_index: int = 0,
                         hdbscan: HDBSCAN | bool | None = None) -> Figure:
-
-        if self.rmsds is not None:
-            rmsds = self.rmsds if rmsds is None else rmsds
-        elif self.rmsds is None:
-            rmsds = self.calculate_ref_rmsds(
-                rank_index) if rmsds is None else rmsds
-        assert rmsds is not None
-
-        if mean_plddts is None:
-            mean_plddts = np.full(len(self.predictions), np.nan, dtype=float)
-            for i, pred in enumerate(self.predictions):
-                mean_plddts[i] = pred.models[rank_index].mean_plddt
+        mean_plddts = np.full(len(self.predictions), np.nan, dtype=float)
+        for i, pred in enumerate(self.predictions):
+            mean_plddts[i] = pred.models[rank_index].mean_plddt
 
         labels = None
-        if hdbscan == True:
-            hdbscan = self.get_plddt_hdbscan(rmsds, mean_plddts)
+        if hdbscan is True:
+            hdbscan = self.get_plddt_hdbscan(data, mean_plddts)
             labels = hdbscan.labels_
         elif isinstance(hdbscan, HDBSCAN):
             labels = hdbscan.labels_
 
         plotter = AFPlotter()
-        return plotter.plot_rmsd_plddt(rmsds, mean_plddts, labels=labels)
+        return plotter.plot_data_plddt(
+            data,
+            mean_plddts,
+            datalabel,
+            labels=labels,
+        )
 
     def get_plddt_hdbscan(self,
                           data: NDArray,
