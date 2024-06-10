@@ -9,7 +9,6 @@ from matplotlib.figure import Figure
 import numpy as np
 from numpy.typing import NDArray
 
-from Bio.PDB.Structure import Structure
 from sklearn.cluster import HDBSCAN
 from tqdm import tqdm
 
@@ -115,22 +114,32 @@ class AFOutput:
 
         return rmsds
 
-    def calculate_ref_rmsds(self, rank_index: int):
+    def calculate_ref_rmsds(self, rank_index: int) -> NDArray:
         ref_rmsds = np.full(len(self.predictions), np.nan, dtype=float)
         model_paths = self.get_rank_paths(rank_index)
 
         if self.ref_path is None:
-            raise TypeError("No path for reference structure is given")
-
-        ref_structure = utils.load_structure(self.ref_path)
+            ref_model = max(
+                [pred.models[rank_index] for pred in self.predictions],
+                key=lambda x: x.mean_plddt)
+            if hasattr(ref_model, "relaxed_pdb_path"):
+                ref_structure = utils.load_structure(
+                    ref_model.relaxed_pdb_path)
+            else:
+                ref_structure = utils.load_structure(ref_model.pdb_path)
+        else:
+            ref_structure = utils.load_structure(self.ref_path)
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
-                ref_rmsds = pool.starmap(
+                results = pool.starmap(
                     utils.calculate_rmsd,
                     tqdm([(m, ref_structure) for m in model_paths],
                          total=len(model_paths),
                          desc="Calculating reference RMSDs"))
+                for i, r in enumerate(results):
+                    ref_rmsds[i] = r
+
         else:
             pbar_mpaths = tqdm(model_paths)
             for i, m in enumerate(pbar_mpaths):
@@ -191,73 +200,30 @@ class AFOutput:
 
         return ref_tms
 
-    def calculate_rmsds_plddts(
-        self,
-        rank_indeces: list[int] | range | None = None,
-        ref_index: int | None = None,
-        ref_structure: Structure | None = None,
-    ) -> tuple[NDArray, NDArray]:
-
-        if rank_indeces is None:
-            rank_indeces = range(len(self.predictions[0].models))
-
-        model_paths = np.empty(len(self.predictions), dtype=np.dtypes.StrDType)
-        plddts = np.full(len(self.predictions) * len(rank_indeces),
-                         np.nan,
-                         dtype=float)
-
-        for i, pred in enumerate(self.predictions):
-            for j, rank_index in enumerate(rank_indeces):
-                model = pred.models[rank_index]
-                plddts[i * len(rank_indeces) + j] = model.mean_plddt
-                if hasattr(model, "relaxed_pdb_path"):
-                    model_paths[i * len(rank_indeces) +
-                                j] = model.relaxed_pdb_path
-                else:
-                    model_paths[i * len(rank_indeces) + j] = model.model_path
-
-        if ref_structure is None and ref_index is None:
-            # TODO: isnt the plddts are already sorted?
-            max_plddt_ind = np.argmax(plddts)
-            ref_structure = utils.load_structure(model_paths[max_plddt_ind])
-        elif ref_index:
-            ref_structure = utils.load_structure(model_paths[ref_index])
-
-        assert ref_structure
-
-        rmsds = np.full(len(model_paths), np.nan, dtype=float)
-
-        if self.process_number > 1:
-            with mp.Pool(processes=self.process_number) as pool:
-                results = tqdm(pool.imap_unordered(
-                    utils.worker_wrapper_calculate_rmsd,
-                    [(ref_structure, m_path, i)
-                     for i, m_path in enumerate(model_paths)]),
-                               desc="Calculating RMSDs",
-                               total=len(model_paths))
-
-                for result in results:
-                    rmsds[result[0]] = result[1]
-        else:
-            pbar = tqdm(model_paths)
-            for i, structure in enumerate(pbar):
-                rmsds[i] = utils.worker_calculate_rmsd(ref_structure,
-                                                       structure, i)[1]
-                pbar.set_description(f"Calculating RMSDs of {structure}")
-
-        return rmsds, plddts
-
     def plot_rmsd_plddt(self,
-                        rmsds: NDArray,
-                        plddts: NDArray,
+                        rmsds: NDArray | None = None,
+                        mean_plddts: NDArray | None = None,
+                        rank_index: int = 0,
                         hbscan: HDBSCAN | None = None) -> Figure:
 
-        labels: NDArray | None = None
+        if self.rmsds is not None:
+            rmsds = self.rmsds if rmsds is None else rmsds
+        elif self.rmsds is None:
+            rmsds = self.calculate_ref_rmsds(
+                rank_index) if rmsds is None else rmsds
+        assert rmsds is not None
+
+        if mean_plddts is None:
+            mean_plddts = np.full(len(self.predictions), np.nan, dtype=float)
+            for i, pred in enumerate(self.predictions):
+                mean_plddts[i] = pred.models[rank_index].mean_plddt
+
+        labels = None
         if hbscan is not None:
             labels = hbscan.labels_
 
         plotter = AFPlotter()
-        return plotter.plot_rmsd_plddt(plddts, rmsds, labels=labels)
+        return plotter.plot_rmsd_plddt(rmsds, mean_plddts, labels=labels)
 
     def get_rmsd_plddt_hbscan(self,
                               rmsds: NDArray,
@@ -268,33 +234,21 @@ class AFOutput:
         hdb.fit(np.dstack((rmsds, plddts))[0])
         return hdb
 
-    def get_rmsd_plddt_cluster_paths(self, rank_indeces: list[int] | range,
+    def get_rmsd_plddt_cluster_paths(self, rank_index: int,
                                      hbscan: HDBSCAN) -> tuple:
-        model_paths = np.empty(len(self.predictions) * len(rank_indeces),
-                               dtype=np.dtypes.StrDType)
-        plddts = np.full(len(self.predictions) * len(rank_indeces),
-                         np.nan,
-                         dtype=float)
-
+        model_paths = self.get_rank_paths(rank_index)
+        mean_plddts = np.full(len(self.predictions), np.nan, dtype=float)
         for i, pred in enumerate(self.predictions):
-            for j, rank_index in enumerate(rank_indeces):
-                model = pred.models[rank_index]
-                plddts[i * len(rank_indeces) + j] = model.mean_plddt
-                if hasattr(model, "relaxed_pdb_path"):
-                    model_paths[i * len(rank_indeces) + j] = str(
-                        model.relaxed_pdb_path)
-                else:
-                    model_paths[i * len(rank_indeces) + j] = str(
-                        model.model_path)
+            mean_plddts[i] = pred.models[rank_index].mean_plddt
 
         clusters = np.unique(hbscan.labels_)
         clusters = clusters[clusters != 1]
 
-        cluster_paths: list[NDArray] = []
+        cluster_paths: list[list[Path]] = []
         cluster_plddts = np.full(len(clusters), np.nan, dtype=float)
         for i, cluster in enumerate(clusters):
             selected_indices = np.where(hbscan.labels_ == cluster)
-            cluster_plddts[i] = np.mean(plddts[selected_indices])
-            cluster_paths.append(np.unique(model_paths[selected_indices]))
+            cluster_plddts[i] = np.mean(mean_plddts[selected_indices])
+            cluster_paths.append([model_paths[s] for s in selected_indices[0]])
 
         return cluster_paths, cluster_plddts
