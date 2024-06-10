@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.colors import LogNorm
 import matplotlib.figure
 
 import numpy as np
@@ -176,14 +177,13 @@ class AFPlotter:
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 
-        print(matrix[0, 0])
-        mask = np.triu(np.ones((matrix.shape[0], matrix.shape[0])))
+        mask = np.tril(np.ones((matrix.shape[0], matrix.shape[0])))
         np.fill_diagonal(mask, 0)
         matrix = np.ma.array(matrix, mask=mask)
-        print(matrix[0, 0])
 
         cmap = matplotlib.colormaps["plasma"]
         cmap.set_bad('w')
+        # cax = ax.matshow(matrix, cmap=cmap, norm=LogNorm())
         cax = ax.matshow(matrix, cmap=cmap)
 
         fig.colorbar(cax, fraction=0.046, pad=0.04)
