@@ -19,7 +19,7 @@ from af_tools.output_types import AF2Model, AF2Prediction, AF3Prediction, AFPred
 def load_structure(path: Path) -> Structure:
     if path.suffix == ".cif":
         parser = MMCIFParser()
-    elif path.suffix == "pdb":
+    elif path.suffix == ".pdb":
         parser = PDBParser()
     else:
         raise TypeError(f"Unknwon model file types:{path}")
@@ -38,10 +38,10 @@ def calculate_rmsd(target_model: Any,
 def _(target_model: Path | Structure,
       ref_model: Path | Structure) -> float | NDArray:
 
-    if isinstance(target_model, Path):
-        target_model = load_structure(target_model)
     if isinstance(ref_model, Path):
         ref_model = load_structure(ref_model)
+    if isinstance(target_model, Path):
+        target_model = load_structure(target_model)
 
     ref_CAs: list[Atom] = []
     target_CAs: list[Atom] = []
@@ -51,7 +51,7 @@ def _(target_model: Path | Structure,
         assert ref_res.id == target_res.id
 
         ref_CAs.append(ref_res["CA"])
-        target_CAs.append(ref_res["CA"])
+        target_CAs.append(target_res["CA"])
 
     sup = Superimposer()
     sup.set_atoms(ref_CAs, target_CAs)
