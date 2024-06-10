@@ -3,7 +3,7 @@ from pathlib import Path
 from itertools import batched
 import pickle
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 from matplotlib.figure import Figure
 import numpy as np
