@@ -81,8 +81,8 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
               "plot_types",
               help="Plot a selected type of graph",
               type=click.Choice(plots := [
-                  "pred_plddt", "plddt_hist", "pae", "RMSDs", "TMs",
-                  "RMSD_plddt"
+                  "pred_plddt", "plddt_hist", "pae", "pairwise_RMSD",
+                  "ref_RMSD", "ref_TM", "pairwise_TM"
               ],
                                 case_sensitive=False),
               multiple=True)
@@ -132,32 +132,28 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
         if "plddt_hist" in what2plot:
             fig = afoutput.plot_plddt_hist()
             save_fig(fig=fig, path_wo_ext=fig_dir / "plddt_hist")
-        if "RMSDs" in what2plot:
-            if afoutput.rmsds is None:
-                afoutput.rmsds = afoutput.calculate_all_vs_all_rmsds(
+        if "ref_RMSDs" in what2plot:
+            if afoutput.ref_rmsds is None:
+                afoutput.ref_rmsds = afoutput.calculate_ref_rmsds(rank_index=0)
+            fig = afoutput.plot_ref_rmsd_plddt()
+            save_fig(fig=fig, path_wo_ext=fig_dir / "ref_rmsds")
+        if "pairwise_RMSD" in what2plot:
+            if afoutput.pairwise_rmsds is None:
+                afoutput.pairwise_rmsds = afoutput.calculate_pairwise_rmsds(
                     rank_index=0)
-            fig = plotter.plot_upper_trig(afoutput.rmsds)
-            save_fig(fig=fig, path_wo_ext=fig_dir / "rmsds")
-        if "TMs" in what2plot:
-            if afoutput.tms is None:
-                afoutput.tms = afoutput.calculate_all_vs_all_tms(rank_index=0)
-            fig = plotter.plot_upper_trig(afoutput.tms)
-            save_fig(fig=fig, path_wo_ext=fig_dir / "tms")
-        if "RMSD_plddt" in what2plot:
-            if ref_structure is not None:
-                rmsds, plddts = afoutput.calculate_rmsds_plddts()
-                hbscan = afoutput.get_rmsd_plddt_hbscan(rmsds, plddts)
-                fig_nohbscan = afoutput.plot_rmsd_plddt(rmsds, plddts)
-                fig_hbscan = afoutput.plot_rmsd_plddt(rmsds, plddts, hbscan)
-
-                save_fig(fig=fig_nohbscan, path_wo_ext=fig_dir / "rmsd_plddt")
-                save_fig(fig=fig_hbscan,
-                         path_wo_ext=fig_dir / "rmsd_plddt_hdbscan")
-            else:
-                # TODO
-                emsg = "Using a reference structure is not yet implemented."
-                sys.stderr.write(emsg)
-                sys.exit(1)
+            fig = plotter.plot_upper_trig(afoutput.pairwise_rmsds)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_rmsds")
+        if "ref_TMs" in what2plot:
+            if afoutput.ref_tms is None:
+                afoutput.ref_tms = afoutput.calculate_ref_tms(rank_index=0)
+            fig = afoutput.plot_ref_tm_plddt()
+            save_fig(fig=fig, path_wo_ext=fig_dir / "ref_tms")
+        if "pairwise_TMs" in what2plot:
+            if afoutput.pairwise_tms is None:
+                afoutput.pairwise_tms = afoutput.calculate_pairwise_tms(
+                    rank_index=0)
+            fig = plotter.plot_upper_trig(afoutput.pairwise_tms)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_tms")
 
     with multiprocessing.Pool(processes=process_count) as pool:
         for _ in pool.imap_unordered(
