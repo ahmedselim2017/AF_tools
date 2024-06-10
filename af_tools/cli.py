@@ -7,11 +7,11 @@ import click
 import matplotlib
 from matplotlib.figure import Figure
 
-from af_tools.afparser import AFParser
-from af_tools.output_types import AFPrediction
-from af_tools.afplotter import AFPlotter
-from af_tools.data_types.afoutput import AFOutput
-from af_tools.data_types.colabfold_msa import ColabfoldMSA
+from af_tools import AFParser
+from af_tools import AFPrediction
+from af_tools import AFPlotter
+from af_tools.data_types import AFOutput
+from af_tools.data_types import ColabfoldMSA
 
 
 def plot_pred(pred: AFPrediction, what2plot, fig_path: Path,

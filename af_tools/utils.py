@@ -13,7 +13,7 @@ from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
 from numpy.typing import NDArray
 
-from af_tools.output_types import AF2Model, AF2Prediction, AF3Prediction, AFPrediction
+from af_tools import AF2Prediction, AF3Prediction
 
 
 def load_structure(path: Path) -> Structure:
