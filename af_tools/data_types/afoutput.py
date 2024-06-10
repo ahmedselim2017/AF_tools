@@ -204,7 +204,7 @@ class AFOutput:
                         rmsds: NDArray | None = None,
                         mean_plddts: NDArray | None = None,
                         rank_index: int = 0,
-                        hbscan: HDBSCAN | None = None) -> Figure:
+                        hdbscan: HDBSCAN | bool | None = None) -> Figure:
 
         if self.rmsds is not None:
             rmsds = self.rmsds if rmsds is None else rmsds
@@ -219,35 +219,38 @@ class AFOutput:
                 mean_plddts[i] = pred.models[rank_index].mean_plddt
 
         labels = None
-        if hbscan is not None:
-            labels = hbscan.labels_
+        if hdbscan == True:
+            hdbscan = self.get_plddt_hdbscan(rmsds, mean_plddts)
+            labels = hdbscan.labels_
+        elif isinstance(hdbscan, HDBSCAN):
+            labels = hdbscan.labels_
 
         plotter = AFPlotter()
         return plotter.plot_rmsd_plddt(rmsds, mean_plddts, labels=labels)
 
-    def get_rmsd_plddt_hbscan(self,
-                              rmsds: NDArray,
-                              plddts: NDArray,
-                              min_sample_size: int = 2) -> HDBSCAN:
+    def get_plddt_hdbscan(self,
+                          data: NDArray,
+                          plddts: NDArray,
+                          min_sample_size: int = 2) -> HDBSCAN:
         from sklearn.cluster import HDBSCAN
         hdb = HDBSCAN(min_samples=min_sample_size)
-        hdb.fit(np.dstack((rmsds, plddts))[0])
+        hdb.fit(np.dstack((data, plddts))[0])
         return hdb
 
     def get_rmsd_plddt_cluster_paths(self, rank_index: int,
-                                     hbscan: HDBSCAN) -> tuple:
+                                     hdbscan: HDBSCAN) -> tuple:
         model_paths = self.get_rank_paths(rank_index)
         mean_plddts = np.full(len(self.predictions), np.nan, dtype=float)
         for i, pred in enumerate(self.predictions):
             mean_plddts[i] = pred.models[rank_index].mean_plddt
 
-        clusters = np.unique(hbscan.labels_)
+        clusters = np.unique(hdbscan.labels_)
         clusters = clusters[clusters != 1]
 
         cluster_paths: list[list[Path]] = []
         cluster_plddts = np.full(len(clusters), np.nan, dtype=float)
         for i, cluster in enumerate(clusters):
-            selected_indices = np.where(hbscan.labels_ == cluster)
+            selected_indices = np.where(hdbscan.labels_ == cluster)
             cluster_plddts[i] = np.mean(mean_plddts[selected_indices])
             cluster_paths.append([model_paths[s] for s in selected_indices[0]])
 
