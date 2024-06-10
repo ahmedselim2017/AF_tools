@@ -192,12 +192,12 @@ class AFPlotter:
         return fig
 
     def plot_data_plddt(
-        self,
-        rmsds: NDArray,
-        mean_plddts: NDArray,
-        datalabel: str,
-        labels: NDArray | None = None,
-    ) -> matplotlib.figure.Figure:
+            self,
+            rmsds: NDArray,
+            mean_plddts: NDArray,
+            datalabel: str,
+            labels: NDArray | None = None) -> matplotlib.figure.Figure:
+
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
 

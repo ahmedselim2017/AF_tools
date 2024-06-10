@@ -227,6 +227,7 @@ class AFOutput:
             ref_tms = self.calculate_ref_tms(rank_index)
         else:
             ref_tms = self.ref_tms
+
         return self.plot_data_plddt(ref_tms,
                                     datalabel="TM Score",
                                     rank_index=rank_index,
@@ -249,19 +250,17 @@ class AFOutput:
             labels = hdbscan.labels_
 
         plotter = AFPlotter()
-        return plotter.plot_data_plddt(
-            data,
-            mean_plddts,
-            datalabel,
-            labels=labels,
-        )
+        return plotter.plot_data_plddt(data,
+                                       mean_plddts,
+                                       datalabel,
+                                       labels=labels)
 
     def get_plddt_hdbscan(self,
                           data: NDArray,
                           plddts: NDArray,
                           min_sample_size: int = 2) -> HDBSCAN:
         from sklearn.cluster import HDBSCAN
-        hdb = HDBSCAN(min_samples=min_sample_size)
+        hdb = HDBSCAN(min_samples=min_sample_size, n_jobs=self.process_number)
         hdb.fit(np.dstack((data, plddts))[0])
         return hdb
 
