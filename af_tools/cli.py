@@ -117,7 +117,6 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
     if af_dir is not None:
         afoutput = AFParser(path=af_dir,
                             process_number=process_count).get_output()
-        print(len(afoutput.predictions[0].models))
     elif pickle_load_path is not None:
         with open(pickle_load_path, "rb") as pickle_load_fh:
             afoutput = pickle.load(pickle_load_fh)
@@ -143,12 +142,12 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
                     rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.pairwise_rmsds)
             save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_rmsds")
-        if "ref_TMs" in what2plot:
+        if "ref_TM" in what2plot:
             if afoutput.ref_tms is None:
                 afoutput.ref_tms = afoutput.calculate_ref_tms(rank_index=0)
             fig = afoutput.plot_ref_tm_plddt()
             save_fig(fig=fig, path_wo_ext=fig_dir / "ref_tms")
-        if "pairwise_TMs" in what2plot:
+        if "pairwise_TM" in what2plot:
             if afoutput.pairwise_tms is None:
                 afoutput.pairwise_tms = afoutput.calculate_pairwise_tms(
                     rank_index=0)
@@ -164,7 +163,7 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
 
     if pickle_save_path is not None:
         with open(pickle_save_path / "af_tools_afoutput.pickle",
-                  "wb") as pickle_save_fh:
+                  "wb+") as pickle_save_fh:
             pickle.dump(afoutput, pickle_save_fh)
 
 
