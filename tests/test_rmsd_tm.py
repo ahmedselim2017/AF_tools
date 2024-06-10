@@ -25,6 +25,16 @@ def test_calc_pairwise_rmsds() -> None:
     input()
 
 
+def test_plot_rmsd_plddt() -> None:
+    afoutput = AFParser("./tests/data/colabfold_rmsd",
+                        process_number=12).get_output()
+    plotter = AFPlotter()
+
+    fig = afoutput.plot_rmsd_plddt()
+    fig.show()
+    input()
+
+
 def test_calc_tm() -> None:
     afoutput = AFParser("./tests/data/colabfold_rmsd").get_output()
 
