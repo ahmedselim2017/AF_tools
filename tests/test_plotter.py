@@ -76,3 +76,20 @@ def test_af3_hist() -> None:
 
     # fig.show()
     # input()
+
+
+def test_colabfcolabfold_rmsd() -> None:
+    colabfold_output = AFParser("./tests/data/colabfold_rmsd",
+                                process_number=12).get_output()
+    rmsds, plddts = colabfold_output.calculate_rmsds_plddts(rank_indeces=[0])
+    hbscan = colabfold_output.get_rmsd_plddt_hbscan(rmsds=rmsds, plddts=plddts)
+    fig = colabfold_output.plot_rmsd_plddt(rmsds=rmsds,
+                                           plddts=plddts,
+                                           hbscan=hbscan)
+
+    clust_paths, clust_plddts = colabfold_output.get_rmsd_plddt_cluster_paths(
+        rank_indeces=[0], hbscan=hbscan)
+
+    # print(clust_paths[np.argmax(clust_plddts)])
+    # fig.show()
+    # input()

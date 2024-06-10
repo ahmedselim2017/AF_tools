@@ -1,22 +1,23 @@
 import multiprocessing
 from pathlib import Path
-from collections.abc import Sequence
+from typing import Sequence
 import operator
 
 from natsort import natsorted
 import numpy as np
+from numpy.typing import NDArray
 import orjson
 from tqdm import tqdm
 
 from af_tools import utils
-from af_tools.data_types import AFOutput
-from af_tools import AF2Prediction, AF2Model
+from af_tools.data_types.afoutput import AFOutput
+from af_tools.output_types import AF2Prediction, AF2Model
 
 
 class AF2Output(AFOutput):
 
     def __init__(self,
-                 path: Path,
+                 path: str | Path,
                  *args,
                  process_number: int = 1,
                  search_recursively: bool = False,

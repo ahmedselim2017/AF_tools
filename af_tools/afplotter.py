@@ -6,7 +6,7 @@ import matplotlib.figure
 import numpy as np
 from numpy.typing import NDArray
 
-from af_tools import AFModel, AFPrediction, AF2Model, AF2Prediction, AF3Model, AF3Prediction
+from af_tools.output_types import AFModel, AFPrediction, AF2Model, AF2Prediction, AF3Model, AF3Prediction
 
 
 class AFPlotter:
