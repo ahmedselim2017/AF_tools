@@ -85,10 +85,7 @@ class AFOutput:
         model_paths: list[Path] = []
         for pred in self.predictions:
             model = pred.models[rank_index]
-            if hasattr(model, "relaxed_pdb_path"):
-                model_paths.append(model.relaxed_pdb_path)
-            else:
-                model_paths.append(model.model_path)
+            model_paths.append(model.get_best_model_path())
         return model_paths
 
     def get_ref_path(self, rank_index: int) -> Path:
@@ -97,10 +94,7 @@ class AFOutput:
             ref_model = max(
                 [pred.models[rank_index] for pred in self.predictions],
                 key=lambda x: x.mean_plddt)
-            if hasattr(ref_model, "relaxed_pdb_path"):
-                ref_path = ref_model.relaxed_pdb_path
-            else:
-                ref_path = ref_model.pdb_path
+            ref_path = ref_model.get_best_model_path()
         else:
             ref_path = self.ref_path
         assert ref_path is not None
@@ -110,6 +104,7 @@ class AFOutput:
         rmsds = np.full((len(self.predictions), len(self.predictions)),
                         np.nan,
                         dtype=float)
+        np.fill_diagonal(rmsds, 0)
         model_paths = self.get_rank_paths(rank_index)
 
         if self.process_number > 1:
@@ -164,6 +159,7 @@ class AFOutput:
         tms = np.full((len(self.predictions), len(self.predictions)),
                       np.nan,
                       dtype=float)
+        np.fill_diagonal(tms, 1)
         model_paths = self.get_rank_paths(rank_index)
 
         if self.process_number > 1:

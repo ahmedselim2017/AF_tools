@@ -81,8 +81,8 @@ def save_fig(fig: Figure, path_wo_ext: Path) -> None:
               "plot_types",
               help="Plot a selected type of graph",
               type=click.Choice(plots := [
-                  "pred_plddt", "plddt_hist", "pae", "pairwise_RMSD",
-                  "ref_RMSD", "ref_TM", "pairwise_TM"
+                  "pred_plddt", "plddt_hist", "pae", "pairwise_RMSDs",
+                  "ref_RMSDs", "ref_TMs", "pairwise_TMs"
               ],
                                 case_sensitive=False),
               multiple=True)
@@ -136,23 +136,29 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
                 afoutput.ref_rmsds = afoutput.calculate_ref_rmsds(rank_index=0)
             fig = afoutput.plot_ref_rmsd_plddt()
             save_fig(fig=fig, path_wo_ext=fig_dir / "ref_rmsds")
-        if "pairwise_RMSD" in what2plot:
+        if "pairwise_RMSDs" in what2plot:
             if afoutput.pairwise_rmsds is None:
                 afoutput.pairwise_rmsds = afoutput.calculate_pairwise_rmsds(
                     rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.pairwise_rmsds)
+            fig_log = plotter.plot_upper_trig(afoutput.pairwise_rmsds,
+                                              log_scale=True)
             save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_rmsds")
-        if "ref_TM" in what2plot:
+            save_fig(fig=fig_log, path_wo_ext=fig_dir / "pairwise_rmsds_log")
+        if "ref_TMs" in what2plot:
             if afoutput.ref_tms is None:
                 afoutput.ref_tms = afoutput.calculate_ref_tms(rank_index=0)
             fig = afoutput.plot_ref_tm_plddt()
             save_fig(fig=fig, path_wo_ext=fig_dir / "ref_tms")
-        if "pairwise_TM" in what2plot:
+        if "pairwise_TMs" in what2plot:
             if afoutput.pairwise_tms is None:
                 afoutput.pairwise_tms = afoutput.calculate_pairwise_tms(
                     rank_index=0)
             fig = plotter.plot_upper_trig(afoutput.pairwise_tms)
+            fig_log = plotter.plot_upper_trig(afoutput.pairwise_tms,
+                                              log_scale=True)
             save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_tms")
+            save_fig(fig=fig_log, path_wo_ext=fig_dir / "pairwise_tms_log")
 
     with multiprocessing.Pool(processes=process_count) as pool:
         for _ in pool.imap_unordered(

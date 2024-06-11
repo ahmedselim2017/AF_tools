@@ -16,6 +16,9 @@ class AFModel:
     pae: NDArray
     af_version: str
 
+    def get_best_model_path(self) -> Path:
+        return self.model_path
+
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class AFPrediction:
@@ -32,6 +35,12 @@ class AF2Model(AFModel):
     residue_plddts: NDArray
     chain_ends: list[int]
     relaxed_pdb_path: Path | None
+
+    def get_best_model_path(self) -> Path:
+        if self.relaxed_pdb_path is not None:
+            return self.relaxed_pdb_path
+        else:
+            return self.model_path
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

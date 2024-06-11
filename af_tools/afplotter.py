@@ -170,12 +170,19 @@ class AFPlotter:
         fig.tight_layout()
         return fig
 
-    def plot_upper_trig(
-            self,
-            matrix: NDArray,
-            labels: list[str] | None = None) -> matplotlib.figure.Figure:
-        fig = plt.figure(figsize=self.figsize)
+    def plot_upper_trig(self,
+                        matrix: NDArray,
+                        labels: list[str] | None = None,
+                        log_scale: bool = False) -> matplotlib.figure.Figure:
+        fig = plt.figure(figsize=(min(self.figsize), min(self.figsize)))
         ax = plt.axes()
+
+        ax.yaxis.tick_right()
+        ax.spines[['left', 'bottom']].set_visible(False)
+        ax.grid(False)
+
+        ax.tick_params(axis="x", bottom=False)
+        ax.tick_params(axis="y", left=False)
 
         mask = np.tril(np.ones((matrix.shape[0], matrix.shape[0])))
         np.fill_diagonal(mask, 0)
@@ -183,11 +190,12 @@ class AFPlotter:
 
         cmap = matplotlib.colormaps["plasma"]
         cmap.set_bad('w')
-        # cax = ax.matshow(matrix, cmap=cmap, norm=LogNorm())
-        cax = ax.matshow(matrix, cmap=cmap)
+        if log_scale:
+            cax = ax.matshow(matrix, cmap=cmap, norm=LogNorm())
+        else:
+            cax = ax.matshow(matrix, cmap=cmap)
 
         fig.colorbar(cax, fraction=0.046, pad=0.04)
-        ax.grid(True)
 
         return fig
 
