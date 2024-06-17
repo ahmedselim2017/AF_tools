@@ -162,4 +162,4 @@ cython_debug/
 #.idea/
 
 tests/data/
-af_tools/others/
+af_tools/others.py

@@ -116,7 +116,8 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
     afoutput: AFOutput | None = None
     if af_dir is not None:
         afoutput = AFParser(path=af_dir,
-                            process_number=process_count).get_output()
+                            process_number=process_count,
+                            sort_plddt=False).get_output()
     elif pickle_load_path is not None:
         with open(pickle_load_path, "rb") as pickle_load_fh:
             afoutput = pickle.load(pickle_load_fh)
@@ -154,9 +155,12 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
             if afoutput.pairwise_tms is None:
                 afoutput.pairwise_tms = afoutput.calculate_pairwise_tms(
                     rank_index=0)
-            fig = plotter.plot_upper_trig(afoutput.pairwise_tms)
+            labels = [pred.name for pred in afoutput.predictions]
+            fig = plotter.plot_upper_trig(afoutput.pairwise_tms, labels=labels)
             fig_log = plotter.plot_upper_trig(afoutput.pairwise_tms,
-                                              log_scale=True)
+                                              log_scale=True,
+                                              labels=labels)
+
             save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_tms")
             save_fig(fig=fig_log, path_wo_ext=fig_dir / "pairwise_tms_log")
 

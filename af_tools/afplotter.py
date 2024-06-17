@@ -173,7 +173,9 @@ class AFPlotter:
     def plot_upper_trig(self,
                         matrix: NDArray,
                         labels: list[str] | None = None,
-                        log_scale: bool = False) -> matplotlib.figure.Figure:
+                        log_scale: bool = False,
+                        vmin: float | None = None,
+                        vmax: float | None = None) -> matplotlib.figure.Figure:
         fig = plt.figure(figsize=(min(self.figsize), min(self.figsize)))
         ax = plt.axes()
 
@@ -191,11 +193,22 @@ class AFPlotter:
         cmap = matplotlib.colormaps["plasma"]
         cmap.set_bad('w')
         if log_scale:
-            cax = ax.matshow(matrix, cmap=cmap, norm=LogNorm())
+            cax = ax.matshow(matrix,
+                             cmap=cmap,
+                             norm=LogNorm(),
+                             vmin=vmin,
+                             vmax=vmax)
         else:
-            cax = ax.matshow(matrix, cmap=cmap)
+            cax = ax.matshow(matrix, cmap=cmap, vmin=vmin, vmax=vmax)
 
-        fig.colorbar(cax, fraction=0.046, pad=0.04)
+        fig.colorbar(cax, fraction=0.046, pad=0.04, location="left")
+
+        if labels:
+            xaxis = np.arange(len(labels))
+            ax.set_xticks(xaxis)
+            ax.set_yticks(xaxis)
+            ax.set_xticklabels(labels, rotation=90)
+            ax.set_yticklabels(labels)
 
         return fig
 

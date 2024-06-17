@@ -5,7 +5,6 @@ import operator
 
 from natsort import natsorted
 import numpy as np
-from numpy.typing import NDArray
 import orjson
 from tqdm import tqdm
 
@@ -17,12 +16,12 @@ from af_tools.output_types import AF2Prediction, AF2Model
 class AF2Output(AFOutput):
 
     def __init__(self,
-                 path: str | Path,
+                 path: Path,
                  *args,
                  process_number: int = 1,
                  search_recursively: bool = False,
                  is_colabfold: bool = True,
-                 sort_plddt: bool = True,
+                 sort_plddt: bool = False,
                  **kwargs):
 
         self.is_colabfold = is_colabfold
@@ -84,27 +83,33 @@ class AF2Output(AFOutput):
                     zip(model_unrel_paths, score_paths)):
                 model_rel_path = None
                 if i < config_data["num_relax"]:
-                    model_rel_path = model_rel_paths[i]
+                    try:
+                        model_rel_path = model_rel_paths[i].absolute()
+                    except IndexError as a:
+                        print(model_rel_paths, i, pred_name)
+                        print(a)
+                        exit()
 
                 with open(score_path, "rb") as score_file:
                     score_data = orjson.loads(score_file.read())
                 pae = np.asarray(score_data["pae"])
                 plddt = np.asarray(score_data["plddt"])
+                ptm = float(score_data["ptm"])
+                iptm = float(score_data["iptm"])
 
                 models.append(
-                    AF2Model(
-                        name=pred_name,
-                        model_path=model_unrel_path,
-                        relaxed_pdb_path=model_rel_path,
-                        json_path=score_path,
-                        rank=i + 1,
-                        mean_plddt=np.mean(plddt, axis=0),
-                        ptm=score_data["ptm"],
-                        pae=pae,
-                        af_version=af_version,
-                        residue_plddts=plddt,
-                        chain_ends=chain_ends,
-                    ))
+                    AF2Model(name=pred_name,
+                             model_path=model_unrel_path.absolute(),
+                             relaxed_pdb_path=model_rel_path,
+                             json_path=score_path.absolute(),
+                             rank=i + 1,
+                             mean_plddt=np.mean(plddt, axis=0),
+                             pae=pae,
+                             af_version=af_version,
+                             residue_plddts=plddt,
+                             chain_ends=chain_ends,
+                             ptm=ptm,
+                             iptm=iptm))
 
             predictions.append(
                 AF2Prediction(
@@ -122,15 +127,15 @@ class AF2Output(AFOutput):
 
         predictions: list[AF2Prediction] = []
         if self.search_recursively:
-            outputs = [x.parent for x in list(self.path.rglob("config.json"))]
+            outputs = natsorted(
+                [x.parent for x in list(self.path.rglob("config.json"))])
             if self.process_number > 1:
                 with multiprocessing.Pool(
                         processes=self.process_number) as pool:
-                    results = tqdm(pool.imap_unordered(
-                        utils.worker_af2output_get_pred, outputs),
+                    results = tqdm(pool.map(utils.worker_af2output_get_pred,
+                                            outputs),
                                    total=len(outputs),
                                    desc="Loading Colabfold predictions")
-
                     predictions = [j for i in results
                                    for j in i]  # flatten the results
             else:

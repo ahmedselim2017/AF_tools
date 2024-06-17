@@ -11,7 +11,7 @@ class AFParser():
                  path: Path | str,
                  process_number: int = 1,
                  sort_plddt: bool = True):
-        self.path = self.check_path(path)
+        self.path = self.check_path(path).absolute()
         self.process_number = process_number
         self.sort_plddt = sort_plddt
 

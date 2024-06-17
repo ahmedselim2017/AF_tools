@@ -79,8 +79,8 @@ class AF3Output(AFOutput):
             models.append(
                 AF3Model(
                     name=pred_name,
-                    model_path=model_path,
-                    json_path=full_data_path,
+                    model_path=model_path.absolute(),
+                    json_path=full_data_path.absolute(),
                     rank=i + 1,
                     mean_plddt=np.mean(atom_plddts, axis=0),
                     ptm=summary_data["ptm"],

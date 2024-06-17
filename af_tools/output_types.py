@@ -14,6 +14,7 @@ class AFModel:
     mean_plddt: float
     ptm: float
     pae: NDArray
+    iptm: float
     af_version: str
 
     def get_best_model_path(self) -> Path:
