@@ -22,14 +22,12 @@ class AFOutput:
     def __init__(self,
                  path: Path,
                  ref_path: Path | None = None,
-                 process_number: int = 1,
-                 search_recursively: bool = False,
-                 sort_plddt: bool = True):
+                 process_number: int | None = None,
+                 should_load: list[str] | None = None):
         self.path = self.check_path(path)
         self.ref_path = ref_path
-        self.process_number = process_number
-        self.search_recursively = search_recursively
-        self.sort_plddt = sort_plddt
+        self.should_load = should_load if should_load else set(
+            ["mean_plddt", "mult_conf", "ptm", "iptm"])
 
         self.predictions = self.get_predictions()
 
@@ -37,7 +35,6 @@ class AFOutput:
         self.pairwise_rmsds: NDArray | None = None
         self.ref_tms: NDArray | None = None
         self.pairwise_tms: NDArray | None = None
-        self.pickle_path: Path | None = None
 
     def check_path(self, path: str | Path) -> Path:
         if isinstance(path, str):

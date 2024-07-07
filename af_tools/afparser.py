@@ -37,17 +37,15 @@ class AFParser():
                         raise ValueError(
                             f"{path.parent} isn't an AF3 output directory")
 
-                data.extend(
-                    AF3Output(
-                        o_terms_path.parent,  # type: ignore
-                        self.process_number).get_models())  # type: ignore
+                data.extend(AF3Output(
+                    o_terms_path.parent).get_models())  # type: ignore
 
         elif output_type == "COLAB_AF2":
             for donetxt_path in path.rglob("*.done.txt"):
                 data.extend(
                     AF2Output(donetxt_path.parent,
-                              donetxt_path.with_suffix("").with_suffix(""),
-                              self.process_number).get_data())
+                              donetxt_path.with_suffix("").with_suffix(
+                                  "")).get_data())
         elif output_type == "MIXED":
             for o_type in self.output_types:
                 data.extend(self.get_output_data(path=path,
