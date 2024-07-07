@@ -15,6 +15,7 @@ class AFModel:
     ptm: float
     pae: NDArray
     iptm: float
+    multimer_conf: float
     af_version: str
 
     def get_best_model_path(self) -> Path:
@@ -55,6 +56,10 @@ class AF3Model(AFModel):
     atom_plddts: NDArray
     atom_chain_ends: list[int]
     token_chain_ends: list[int]
+    atom_chain_ids: list[str]
+    token_chain_ids: list[str]
+    token_res_ids: NDArray
+    contact_probs: NDArray
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

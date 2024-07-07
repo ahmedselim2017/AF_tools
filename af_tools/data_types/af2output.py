@@ -95,7 +95,11 @@ class AF2Output(AFOutput):
                 pae = np.asarray(score_data["pae"])
                 plddt = np.asarray(score_data["plddt"])
                 ptm = float(score_data["ptm"])
-                iptm = float(score_data["iptm"])
+                try:
+                    iptm = float(score_data["iptm"])
+                except KeyError:
+                    # TODO
+                    iptm = np.NINF
 
                 models.append(
                     AF2Model(name=pred_name,
@@ -109,7 +113,8 @@ class AF2Output(AFOutput):
                              residue_plddts=plddt,
                              chain_ends=chain_ends,
                              ptm=ptm,
-                             iptm=iptm))
+                             iptm=iptm,
+                             multimer_conf=0.8 * iptm + 0.2 * ptm))
 
             predictions.append(
                 AF2Prediction(

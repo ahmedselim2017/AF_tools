@@ -75,21 +75,38 @@ class AF3Output(AFOutput):
                     token_chain_ends.append(chain_len + token_chain_ends[-1])
 
             atom_plddts = np.asarray(full_data["atom_plddts"])
+            atom_chain_ids = full_data["atom_chain_ids"]
+
             pae = np.asarray(full_data["pae"])
+            token_chain_ids = full_data["token_chain_ids"]
+            token_res_ids = np.asfarray(full_data["token_res_ids"])
+
+            token_res_ids = np.asarray(full_data["token_res_ids"])
+            contact_probs = np.asarray(full_data["contact_probs"])
+            if summary_data["iptm"] is not None:
+                multimer_conf = 0.8 * summary_data[
+                    "iptm"] + 0.2 * summary_data["ptm"]
+            else:
+                # TODO
+                multimer_conf = -1
             models.append(
-                AF3Model(
-                    name=pred_name,
-                    model_path=model_path.absolute(),
-                    json_path=full_data_path.absolute(),
-                    rank=i + 1,
-                    mean_plddt=np.mean(atom_plddts, axis=0),
-                    ptm=summary_data["ptm"],
-                    pae=pae,
-                    af_version=af_version,
-                    atom_plddts=atom_plddts,
-                    atom_chain_ends=atom_chain_ends,
-                    token_chain_ends=token_chain_ends,
-                ))
+                AF3Model(name=pred_name,
+                         model_path=model_path.absolute(),
+                         json_path=full_data_path.absolute(),
+                         rank=i + 1,
+                         mean_plddt=np.mean(atom_plddts, axis=0),
+                         ptm=summary_data["ptm"],
+                         iptm=summary_data["iptm"],
+                         pae=pae,
+                         af_version=af_version,
+                         atom_plddts=atom_plddts,
+                         atom_chain_ends=atom_chain_ends,
+                         token_chain_ends=token_chain_ends,
+                         atom_chain_ids=atom_chain_ids,
+                         token_chain_ids=token_chain_ids,
+                         token_res_ids=token_res_ids,
+                         contact_probs=contact_probs,
+                         multimer_conf=multimer_conf))
         return [
             AF3Prediction(name=pred_name,
                           num_ranks=len(models),

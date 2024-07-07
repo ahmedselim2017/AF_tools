@@ -88,19 +88,26 @@ class AFOutput:
             model_paths.append(model.get_best_model_path())
         return model_paths
 
-    def get_ref_path(self, rank_index: int) -> Path:
+    def get_ref_path(self, rank_index: int, mult_conf: bool = False) -> Path:
         ref_path: Path | None = None
         if self.ref_path is None:
-            ref_model = max(
-                [pred.models[rank_index] for pred in self.predictions],
-                key=lambda x: x.mean_plddt)
+            if mult_conf:
+                ref_model = max(
+                    [pred.models[rank_index] for pred in self.predictions],
+                    key=lambda x: x.multimer_conf)
+            else:
+                ref_model = max(
+                    [pred.models[rank_index] for pred in self.predictions],
+                    key=lambda x: x.mean_plddt)
             ref_path = ref_model.get_best_model_path()
         else:
             ref_path = self.ref_path
         assert ref_path is not None
         return ref_path
 
-    def calculate_pairwise_rmsds(self, rank_index: int) -> NDArray:
+    def calculate_pairwise_rmsds(self,
+                                 rank_index: int,
+                                 mult_conf=False) -> NDArray:
         rmsds = np.full((len(self.predictions), len(self.predictions)),
                         np.nan,
                         dtype=float)
@@ -126,11 +133,12 @@ class AFOutput:
 
         return rmsds
 
-    def calculate_ref_rmsds(self, rank_index: int) -> NDArray:
+    def calculate_ref_rmsds(self, rank_index: int, mult_conf=False) -> NDArray:
         ref_rmsds = np.full(len(self.predictions), np.nan, dtype=float)
         model_paths = self.get_rank_paths(rank_index)
 
-        ref_structure = utils.load_structure(self.get_ref_path(rank_index))
+        ref_structure = utils.load_structure(
+            self.get_ref_path(rank_index, mult_conf))
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
@@ -181,11 +189,11 @@ class AFOutput:
 
         return tms
 
-    def calculate_ref_tms(self, rank_index: int) -> NDArray:
+    def calculate_ref_tms(self, rank_index: int, mult_conf=False) -> NDArray:
         ref_tms = np.full(len(self.predictions), np.nan, dtype=float)
         model_paths = self.get_rank_paths(rank_index)
 
-        ref_path = self.get_ref_path(rank_index)
+        ref_path = self.get_ref_path(rank_index, mult_conf)
 
         if self.process_number > 1:
             with mp.Pool(processes=self.process_number) as pool:
@@ -250,6 +258,25 @@ class AFOutput:
                                        mean_plddts,
                                        datalabel,
                                        labels=labels)
+
+    def plot_data_conf(self,
+                       data: NDArray,
+                       datalabel: str = "Data",
+                       rank_index: int = 0,
+                       hdbscan: HDBSCAN | bool | None = None) -> Figure:
+        confs = np.full(len(self.predictions), np.nan, dtype=float)
+        for i, pred in enumerate(self.predictions):
+            confs[i] = pred.models[rank_index].multimer_conf
+
+        labels = None
+        if hdbscan is True:
+            hdbscan = self.get_plddt_hdbscan(data, confs)
+            labels = hdbscan.labels_
+        elif isinstance(hdbscan, HDBSCAN):
+            labels = hdbscan.labels_
+
+        plotter = AFPlotter()
+        return plotter.plot_data_conf(data, confs, datalabel, labels=labels)
 
     def get_plddt_hdbscan(self,
                           data: NDArray,

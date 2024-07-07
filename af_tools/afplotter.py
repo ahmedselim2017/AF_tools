@@ -248,3 +248,35 @@ class AFPlotter:
 
         fig.tight_layout()
         return fig
+
+    def plot_data_conf(
+            self,
+            rmsds: NDArray,
+            confs: NDArray,
+            datalabel: str,
+            labels: NDArray | None = None) -> matplotlib.figure.Figure:
+
+        fig = plt.figure(figsize=self.figsize)
+        ax = plt.axes()
+
+        ax.set(xlabel=datalabel, ylabel="Confidence", ylim=(0, 1))
+
+        if labels is None:
+            ax.scatter(rmsds, confs, alpha=0.3)
+        else:
+            for i, label in enumerate(np.unique(labels)):
+                color = self.colors[i % len(
+                    self.colors)] if label != -1 else "black"
+
+                selected_indices = np.where(labels == label)
+
+                ax.scatter(rmsds[selected_indices],
+                           confs[selected_indices],
+                           alpha=0.3,
+                           label=label,
+                           color=color)
+
+            ax.legend()
+
+        fig.tight_layout()
+        return fig

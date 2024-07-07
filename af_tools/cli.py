@@ -133,24 +133,39 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
             fig = afoutput.plot_plddt_hist()
             save_fig(fig=fig, path_wo_ext=fig_dir / "plddt_hist")
         if "ref_RMSDs" in what2plot:
-            if afoutput.ref_rmsds is None:
-                afoutput.ref_rmsds = afoutput.calculate_ref_rmsds(rank_index=0)
+            afoutput.ref_rmsds = afoutput.calculate_ref_rmsds(rank_index=0)
             fig = afoutput.plot_ref_rmsd_plddt()
             save_fig(fig=fig, path_wo_ext=fig_dir / "ref_rmsds")
+
+            afoutput.ref_rmsds = afoutput.calculate_ref_rmsds(rank_index=0,
+                                                              mult_conf=True)
+            fig = afoutput.plot_data_conf(afoutput.ref_rmsds,
+                                          datalabel="RMSD",
+                                          rank_index=0,
+                                          hdbscan=False)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "ref_rmsds_multimer_conf")
         if "pairwise_RMSDs" in what2plot:
             if afoutput.pairwise_rmsds is None:
                 afoutput.pairwise_rmsds = afoutput.calculate_pairwise_rmsds(
                     rank_index=0)
+            labels = [pred.name for pred in afoutput.predictions]
             fig = plotter.plot_upper_trig(afoutput.pairwise_rmsds)
             fig_log = plotter.plot_upper_trig(afoutput.pairwise_rmsds,
+                                              labels=labels,
                                               log_scale=True)
             save_fig(fig=fig, path_wo_ext=fig_dir / "pairwise_rmsds")
             save_fig(fig=fig_log, path_wo_ext=fig_dir / "pairwise_rmsds_log")
         if "ref_TMs" in what2plot:
-            if afoutput.ref_tms is None:
-                afoutput.ref_tms = afoutput.calculate_ref_tms(rank_index=0)
             fig = afoutput.plot_ref_tm_plddt()
             save_fig(fig=fig, path_wo_ext=fig_dir / "ref_tms")
+
+            afoutput.ref_tms = afoutput.calculate_ref_tms(rank_index=0,
+                                                          mult_conf=True)
+            fig = afoutput.plot_data_conf(afoutput.ref_tms,
+                                          datalabel="TM",
+                                          rank_index=0,
+                                          hdbscan=False)
+            save_fig(fig=fig, path_wo_ext=fig_dir / "ref_tms_multimer_conf")
         if "pairwise_TMs" in what2plot:
             if afoutput.pairwise_tms is None:
                 afoutput.pairwise_tms = afoutput.calculate_pairwise_tms(
