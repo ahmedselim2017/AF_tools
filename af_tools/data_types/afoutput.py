@@ -29,8 +29,6 @@ class AFOutput:
         self.should_load = should_load if should_load else set(
             ["mean_plddt", "mult_conf", "ptm", "iptm"])
 
-        self.predictions = self.get_predictions()
-
         self.ref_rmsds: NDArray | None = None
         self.pairwise_rmsds: NDArray | None = None
         self.ref_tms: NDArray | None = None

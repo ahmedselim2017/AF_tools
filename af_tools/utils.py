@@ -5,6 +5,7 @@ from pathlib import Path
 from collections.abc import Sequence
 
 import numpy as np
+import pandas as pd
 
 from Bio.PDB.Structure import Structure
 from Bio.PDB.Atom import Atom
@@ -68,6 +69,11 @@ def _(target_model: list, ref_model: Path | Structure) -> float | NDArray:
     return rmsds
 
 
+@calculate_rmsd.register
+def _(target_model: pd.Series, ref_model: Path | Structure) -> float | NDArray:
+    return calculate_rmsd(target_model["best_model_path"], ref_model)
+
+
 @singledispatch
 def calculate_tm(target_model: Any, ref_model: Path) -> float | NDArray:
     raise NotImplementedError(
@@ -92,6 +98,11 @@ def _(target_model: list, ref_model: Path) -> float | NDArray:
     for i, target_model_p in enumerate(target_model):
         tms[i] = calculate_tm(target_model_p, ref_model)
     return tms
+
+
+@calculate_tm.register
+def _(target_model: pd.Series, ref_model: Path) -> float | NDArray:
+    return calculate_tm(target_model["best_model_path"], ref_model)
 
 
 def worker_af2output_get_pred(path: Path) -> Sequence[AF2Prediction]:

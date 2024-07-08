@@ -1,26 +1,16 @@
-from dataclasses import dataclass
-import multiprocessing
-import operator
-from pathlib import Path
-from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 import orjson
-from tqdm import tqdm
-from natsort import natsorted
 
-from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
-from af_tools.output_types import AF3Prediction, AF3Model
 
 
 class AF3Output(AFOutput):
 
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
-        self.should_load = []  # TODO
 
         m_paths = self.path.glob("*_model_*.cif")
         pred_name = None
@@ -28,10 +18,13 @@ class AF3Output(AFOutput):
             if pred_name is None:
                 pred_name = "_model_".join(m_path.name.split("_model_")[:-1])
 
-            m_summary_path = self.path / m_path.name[::-1].replace(
-                "_model_"[::-1], "_summary_confidences_"[::-1], 1)[::-1]
-            m_full_data_path = self.path / m_path.name[::-1].replace(
-                "_model_"[::-1], "_full_data_"[::-1], 1)[::-1]
+            m_summary_path = (self.path / m_path.stem[::-1].replace(
+                "_model_"[::-1], "_summary_confidences_"[::-1],
+                1)[::-1]).with_suffix(".json")
+            m_full_data_path = (
+                self.path /
+                m_path.stem[::-1].replace("_model_"[::-1], "_full_data_"[::-1],
+                                          1)[::-1]).with_suffix(".json")
 
             plddt: None | NDArray = None
             mean_plddt: None | float = None
