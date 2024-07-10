@@ -112,9 +112,7 @@ class AF3Output(AFOutput):
                         "ptm"] if "ptm" in self.should_load else None
                     iptm = m_summary_data[
                         "iptm"] if "iptm" in self.should_load else None
-                    mult_conf = None if iptm is None else m_summary_data[
-                        "ranking_score"]
-
+                    mult_conf = None if iptm is None else 0.8 * iptm + 0.2 * ptm
             data.append([
                 self.path, pred_name, "AF3_SERVER", m_path, m_path,
                 m_full_data_path, m_summary_path, atom_chain_ends,

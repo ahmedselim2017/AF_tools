@@ -2,19 +2,19 @@ from functools import singledispatch
 import subprocess
 from typing import Any
 from pathlib import Path
-from collections.abc import Sequence
 
 import numpy as np
+from numpy.typing import NDArray
+
 import pandas as pd
 
 from Bio.PDB.Structure import Structure
 from Bio.PDB.Atom import Atom
+from Bio.PDB.Residue import Residue
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
-from numpy.typing import NDArray
-
-from af_tools.output_types import AF2Model, AF2Prediction, AF3Prediction, AFPrediction
+from Bio.PDB.NeighborSearch import NeighborSearch
 
 
 def load_structure(path: Path) -> Structure:
@@ -84,7 +84,7 @@ def calculate_tm(target_model: Any, ref_model: Path) -> float | NDArray:
 @calculate_tm.register
 def _(target_model: Path, ref_model: Path) -> float | NDArray:
     cmd = [
-        "USalign", "-outfmt", "2",
+        "USalign", "-outfmt", "2", "-mm", "1", "-ter", "0",
         str(target_model.absolute()),
         str(ref_model.absolute())
     ]
@@ -105,14 +105,71 @@ def _(target_model: pd.Series, ref_model: Path) -> float | NDArray:
     return calculate_tm(target_model["best_model_path"], ref_model)
 
 
-def worker_af2output_get_pred(path: Path) -> Sequence[AF2Prediction]:
-    from af_tools.data_types.af2output import AF2Output
-    af2output = AF2Output(path=path, process_number=1)
-    # print(len(af2output.predictions))
-    return af2output.predictions
+def find_interface(df: pd.Series,
+                   dist_cutoff: float = 4.0,
+                   automatic_passives=True,
+                   passive_cutoff=6.5) -> tuple:
 
+    model = load_structure(df["best_model_path"])
 
-def worker_af3output_get_pred(path: Path) -> Sequence[AF3Prediction]:
-    from af_tools.data_types.af3output import AF3Output
-    af3output = AF3Output(path=path, process_number=1)
-    return af3output.predictions
+    chains = list(model.get_chains())
+    if len(chains) <= 1:
+        raise ValueError(
+            f"The number of chains is {len(chains)}. At lease 2 chains are needed."
+        )
+    elif len(chains) > 2:
+        raise NotImplementedError(
+            ("Calculation of interface for structures",
+             "with more than 2 chains is not yet implemented."))
+
+    A_searcher = NeighborSearch(list(chains[0].get_atoms()))
+    B_searcher = NeighborSearch(list(chains[1].get_atoms()))
+
+    A_int: set[Residue] = set()
+    B_int: set[Residue] = set()
+
+    int_plddts: list[float] = []
+
+    for a_atom in chains[0].get_atoms():
+        for int_res in B_searcher.search(a_atom.get_coord(),
+                                         dist_cutoff,
+                                         level="R"):
+            assert isinstance(int_res, Residue)
+            B_int.add(int_res.id[1])
+            for int_atom in int_res.get_atoms():
+                int_plddts.append(df["plddt"][int_atom.serial_number - 1])
+
+    for b_atom in chains[1].get_atoms():
+        for int_res in A_searcher.search(b_atom.get_coord(),
+                                         dist_cutoff,
+                                         level="R"):
+            assert isinstance(int_res, Residue)
+            A_int.add(int_res.id[1])
+
+            for int_atom in int_res.get_atoms():
+                int_plddts.append(df["plddt"][int_atom.serial_number - 1])
+
+    # A_pass: set[Residue] | None = None
+    # B_pass: set[Residue] | None = None
+    # if automatic_passives:
+    #     A_pass = set()
+    #     B_pass = set()
+    #
+    #     for a_int_res_id in A_int:
+    #         a_int_res = chains[0].__getitem__(a_int_res_id)
+    #         for a_int_atom in a_int_res.get_atoms():
+    #             for res in A_searcher.search(a_int_atom.get_coord(),
+    #                                          passive_cutoff,
+    #                                          level="R"):
+    #                 assert isinstance(res, Residue)
+    #                 A_pass.add(res.id[1])
+    #     for b_int_res_id in B_int:
+    #         b_int_res = chains[1].__getitem__(b_int_res_id)
+    #         for b_int_atom in b_int_res.get_atoms():
+    #             for res in B_searcher.search(b_int_atom.get_coord(),
+    #                                          passive_cutoff,
+    #                                          level="R"):
+    #                 assert isinstance(res, Residue)
+    #                 A_pass.add(res.id[1])
+    #
+    return np.asarray(int_plddts).mean(), A_int, B_int
