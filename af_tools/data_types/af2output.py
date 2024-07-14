@@ -1,5 +1,4 @@
 from pathlib import Path
-from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -14,7 +13,6 @@ class AF2Output(AFOutput):
     def __init__(self,
                  path: Path,
                  pred_name: Path,
-                 process_number: int | None = None,
                  should_load: list[str] | None = None,
                  is_colabfold: bool = True):
 

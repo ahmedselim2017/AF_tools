@@ -61,7 +61,7 @@ class AFParser():
         data = self._get_output_data()
         df = pd.DataFrame(
             data,
-            columns=[
+            columns=[  # type: ignore
                 "output_path", "pred_name", "output_type", "best_model_path",
                 "unrel_model_path", "full_json_path", "summary_json_path",
                 "plddt_chain_ends", "pae_chain_ends", "is_multimer", "plddt",

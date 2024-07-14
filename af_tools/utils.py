@@ -11,6 +11,7 @@ import pandas as pd
 from Bio.PDB.Structure import Structure
 from Bio.PDB.Atom import Atom
 from Bio.PDB.Residue import Residue
+from Bio.PDB.Chain import Chain
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Superimposer import Superimposer
@@ -105,71 +106,66 @@ def _(target_model: pd.Series, ref_model: Path) -> float | NDArray:
     return calculate_tm(target_model["best_model_path"], ref_model)
 
 
-def find_interface(df: pd.Series,
-                   dist_cutoff: float = 4.0,
-                   automatic_passives=True,
-                   passive_cutoff=6.5) -> tuple:
-
-    model = load_structure(df["best_model_path"])
-
-    chains = list(model.get_chains())
-    if len(chains) <= 1:
-        raise ValueError(
-            f"The number of chains is {len(chains)}. At lease 2 chains are needed."
-        )
-    elif len(chains) > 2:
-        raise NotImplementedError(
-            ("Calculation of interface for structures",
-             "with more than 2 chains is not yet implemented."))
-
-    A_searcher = NeighborSearch(list(chains[0].get_atoms()))
-    B_searcher = NeighborSearch(list(chains[1].get_atoms()))
-
+def find_chain_interface(chainA: Chain,
+                         chainB: Chain,
+                         chainA_searcher: NeighborSearch,
+                         chainB_searcher: NeighborSearch,
+                         plddts: list[float],
+                         dist_cutoff: float = 4.0):
     A_int: set[Residue] = set()
     B_int: set[Residue] = set()
-
     int_plddts: list[float] = []
-
-    for a_atom in chains[0].get_atoms():
-        for int_res in B_searcher.search(a_atom.get_coord(),
-                                         dist_cutoff,
-                                         level="R"):
+    for a_atom in chainA.get_atoms():
+        for int_res in chainB_searcher.search(a_atom.get_coord(),
+                                              dist_cutoff,
+                                              level="R"):
             assert isinstance(int_res, Residue)
             B_int.add(int_res.id[1])
             for int_atom in int_res.get_atoms():
-                int_plddts.append(df["plddt"][int_atom.serial_number - 1])
+                int_plddts.append(plddts[int_atom.serial_number - 1])
 
-    for b_atom in chains[1].get_atoms():
-        for int_res in A_searcher.search(b_atom.get_coord(),
-                                         dist_cutoff,
-                                         level="R"):
+    for b_atom in chainB.get_atoms():
+        for int_res in chainA_searcher.search(b_atom.get_coord(),
+                                              dist_cutoff,
+                                              level="R"):
             assert isinstance(int_res, Residue)
             A_int.add(int_res.id[1])
 
             for int_atom in int_res.get_atoms():
-                int_plddts.append(df["plddt"][int_atom.serial_number - 1])
+                int_plddts.append(plddts[int_atom.serial_number - 1])
 
-    # A_pass: set[Residue] | None = None
-    # B_pass: set[Residue] | None = None
-    # if automatic_passives:
-    #     A_pass = set()
-    #     B_pass = set()
-    #
-    #     for a_int_res_id in A_int:
-    #         a_int_res = chains[0].__getitem__(a_int_res_id)
-    #         for a_int_atom in a_int_res.get_atoms():
-    #             for res in A_searcher.search(a_int_atom.get_coord(),
-    #                                          passive_cutoff,
-    #                                          level="R"):
-    #                 assert isinstance(res, Residue)
-    #                 A_pass.add(res.id[1])
-    #     for b_int_res_id in B_int:
-    #         b_int_res = chains[1].__getitem__(b_int_res_id)
-    #         for b_int_atom in b_int_res.get_atoms():
-    #             for res in B_searcher.search(b_int_atom.get_coord(),
-    #                                          passive_cutoff,
-    #                                          level="R"):
-    #                 assert isinstance(res, Residue)
-    #                 A_pass.add(res.id[1])
-    #
+    if len(int_plddts) == 0:
+        return 30, None, None
     return np.asarray(int_plddts).mean(), A_int, B_int
+
+
+def find_interface(df: pd.Series, dist_cutoff: float = 4.0) -> tuple:
+
+    model = load_structure(df["best_model_path"])  # type:ignore
+
+    chains = list(model.get_chains())
+
+    chain_ints = np.zeros((len(chains), len(chains)), dtype=object)
+    # plddts = np.zeros((len(chains), len(chains)), dtype=float)
+    mean_plddts: list[float] = []
+
+    searchers = np.zeros(len(chains), dtype=object)
+
+    for i, chain in enumerate(chains):
+        searchers[i] = NeighborSearch(list(chain.get_atoms()))
+
+    for i, chainA in enumerate(chains):
+        for j, chainB in enumerate(chains):
+            if i <= j:
+                continue
+            mean_plddt, chain_ints[i][j], chain_ints[j][
+                i] = find_chain_interface(
+                    chainA,
+                    chainB,
+                    searchers[i],
+                    searchers[j],
+                    df["plddt"],  # type:ignore
+                    dist_cutoff)
+            mean_plddts.append(mean_plddt)
+
+    return np.asarray(mean_plddts).mean(), chain_ints
