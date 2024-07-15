@@ -108,12 +108,19 @@ def _(target_model: pd.Series, ref_model: Path) -> float | NDArray:
 
 def find_chain_interface(chainA: Chain,
                          chainB: Chain,
-                         chainA_searcher: NeighborSearch,
-                         chainB_searcher: NeighborSearch,
-                         plddts: list[float],
-                         dist_cutoff: float = 4.0):
+                         chainA_searcher: NeighborSearch | None = None,
+                         chainB_searcher: NeighborSearch | None = None,
+                         plddts: list[float] | None = None,
+                         dist_cutoff: float = 4.5):
+
+    if chainA_searcher is None:
+        chainA_searcher = NeighborSearch(list(chainA.get_atoms()))
+    if chainB_searcher is None:
+        chainB_searcher = NeighborSearch(list(chainB.get_atoms()))
+
     A_int: set[Residue] = set()
     B_int: set[Residue] = set()
+
     int_plddts: list[float] = []
     for a_atom in chainA.get_atoms():
         for int_res in chainB_searcher.search(a_atom.get_coord(),
@@ -121,8 +128,9 @@ def find_chain_interface(chainA: Chain,
                                               level="R"):
             assert isinstance(int_res, Residue)
             B_int.add(int_res.id[1])
-            for int_atom in int_res.get_atoms():
-                int_plddts.append(plddts[int_atom.serial_number - 1])
+            if plddts is not None:
+                for int_atom in int_res.get_atoms():
+                    int_plddts.append(plddts[int_atom.serial_number - 1])
 
     for b_atom in chainB.get_atoms():
         for int_res in chainA_searcher.search(b_atom.get_coord(),
@@ -131,22 +139,53 @@ def find_chain_interface(chainA: Chain,
             assert isinstance(int_res, Residue)
             A_int.add(int_res.id[1])
 
-            for int_atom in int_res.get_atoms():
-                int_plddts.append(plddts[int_atom.serial_number - 1])
+            if plddts is not None:
+                for int_atom in int_res.get_atoms():
+                    int_plddts.append(plddts[int_atom.serial_number - 1])
 
     if len(int_plddts) == 0:
         return 30, None, None
     return np.asarray(int_plddts).mean(), A_int, B_int
 
 
-def find_interface(df: pd.Series, dist_cutoff: float = 4.0) -> tuple:
+@singledispatch
+def find_interface(data: Any, dist_cutoff: float = 4.5) -> tuple:
+    raise NotImplementedError((f"Argument type {type(data)} for data is"
+                               "not implemented for find_interface function."))
 
-    model = load_structure(df["best_model_path"])  # type:ignore
+
+@find_interface.register
+def _(data: list[Chain], dist_cutoff: float = 4.5) -> tuple:
+    chain_ints = np.zeros((len(data), len(data)), dtype=object)
+
+    searchers = np.zeros(len(data), dtype=object)
+
+    for i, chain in enumerate(data):
+        searchers[i] = NeighborSearch(list(chain.get_atoms()))
+
+    for i, chainA in enumerate(data):
+        for j, chainB in enumerate(data):
+            if i <= j:
+                continue
+            _, chain_ints[i][j], chain_ints[j][i] = find_chain_interface(
+                chainA=chainA,
+                chainB=chainB,
+                chainA_searcher=searchers[i],
+                chainB_searcher=searchers[j],
+                plddts=None,
+                dist_cutoff=dist_cutoff)
+
+    return None, chain_ints
+
+
+@find_interface.register
+def _(data: pd.Series, dist_cutoff: float = 4.5) -> tuple:
+
+    model = load_structure(data["best_model_path"])  # type:ignore
 
     chains = list(model.get_chains())
 
     chain_ints = np.zeros((len(chains), len(chains)), dtype=object)
-    # plddts = np.zeros((len(chains), len(chains)), dtype=float)
     mean_plddts: list[float] = []
 
     searchers = np.zeros(len(chains), dtype=object)
@@ -164,7 +203,7 @@ def find_interface(df: pd.Series, dist_cutoff: float = 4.0) -> tuple:
                     chainB,
                     searchers[i],
                     searchers[j],
-                    df["plddt"],  # type:ignore
+                    data["plddt"],  # type:ignore
                     dist_cutoff)
             mean_plddts.append(mean_plddt)
 
