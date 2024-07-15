@@ -2,6 +2,7 @@ from functools import singledispatch
 import subprocess
 from typing import Any
 from pathlib import Path
+import math
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,7 +19,9 @@ from Bio.PDB.Superimposer import Superimposer
 from Bio.PDB.NeighborSearch import NeighborSearch
 
 
-def load_structure(path: Path) -> Structure:
+def load_structure(path: Path | str) -> Structure:
+    if isinstance(path, str):
+        path = Path(path)
     if path.suffix == ".cif":
         parser = MMCIFParser()
     elif path.suffix == ".pdb":
@@ -208,3 +211,34 @@ def _(data: pd.Series, dist_cutoff: float = 4.5) -> tuple:
             mean_plddts.append(mean_plddt)
 
     return np.asarray(mean_plddts).mean(), chain_ints
+
+
+@singledispatch
+def calculate_radiusofgyration(data: Any) -> float:
+    raise NotImplementedError(
+        (f"Argument type {type(data)} for data is"
+         "not implemented for calculate_radiusofgyration function."))
+
+
+@calculate_radiusofgyration.register
+def _(data: Structure) -> float:
+    cm = data.center_of_mass()
+
+    tot_mass = 0.0
+    A = 0.0
+    for at in data.get_atoms():
+        at_mass = at.mass
+        A += at_mass * ((at.get_coord() - cm)**2).sum()
+        tot_mass += at_mass
+    return math.sqrt(A / tot_mass)
+
+
+@calculate_radiusofgyration.register
+def _(data: Path | str) -> float:
+    structure = load_structure(data)
+    return calculate_radiusofgyration(structure)
+
+
+def _(data: pd.Series) -> float:
+    structure = load_structure(data["best_model_path"])  # type: ignore
+    return calculate_radiusofgyration(structure)
