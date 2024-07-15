@@ -103,9 +103,10 @@ class AF2Output(AFOutput):
                 self.path,
                 self.pred_name,
                 "AF2_COLAB",
-                m_rel_path if m_rel_path is not None else m_unrel_path,
-                m_unrel_path,
-                m_scores_path,
+                str(m_rel_path)
+                if m_rel_path is not None else str(m_unrel_path),
+                str(m_unrel_path),
+                str(m_scores_path),
                 None,  # summary JSON path
                 chain_ends,  # chain_ends for plddt
                 chain_ends,  # chain_ends for pae

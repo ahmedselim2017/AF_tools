@@ -114,11 +114,14 @@ class AF3Output(AFOutput):
                         "iptm"] if "iptm" in self.should_load else None
                     mult_conf = None if iptm is None else 0.8 * iptm + 0.2 * ptm
             data.append([
-                self.path, pred_name, "AF3_SERVER", m_path, m_path,
-                m_full_data_path, m_summary_path, atom_chain_ends,
-                token_chain_ends, True if mult_conf is not None else None,
-                plddt, mean_plddt, pae, ptm, iptm, mult_conf, contact_probs,
-                atom_chain_ids, token_chain_ids, token_res_ids
+                self.path, pred_name, "AF3_SERVER",
+                str(m_path),
+                str(m_path),
+                str(m_full_data_path),
+                str(m_summary_path), atom_chain_ends, token_chain_ends,
+                True if mult_conf is not None else None, plddt, mean_plddt,
+                pae, ptm, iptm, mult_conf, contact_probs, atom_chain_ids,
+                token_chain_ids, token_res_ids
             ])
 
         return data
