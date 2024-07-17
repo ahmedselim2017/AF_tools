@@ -40,12 +40,12 @@ def calculate_rmsd(target_model: Any,
 
 
 @calculate_rmsd.register
-def _(target_model: Path | Structure,
-      ref_model: Path | Structure) -> float | NDArray:
+def _(target_model: Path | str | Structure,
+      ref_model: Path | str | Structure) -> float | NDArray:
 
-    if isinstance(ref_model, Path):
+    if isinstance(ref_model, Path) or isinstance(ref_model, str):
         ref_model = load_structure(ref_model)
-    if isinstance(target_model, Path):
+    if isinstance(target_model, Path) or isinstance(target_model, str):
         target_model = load_structure(target_model)
 
     ref_CAs: list[Atom] = []
@@ -82,16 +82,16 @@ def _(target_model: pd.Series, ref_model: Path | Structure) -> float | NDArray:
 def calculate_tm(target_model: Any, ref_model: Path) -> float | NDArray:
     raise NotImplementedError(
         (f"Argument type {type(target_model)} for target_model_path is"
-         "not implemented for calculate_rmsd function."))
+         "not implemented for calculate_tm function."))
 
 
 @calculate_tm.register
-def _(target_model: Path, ref_model: Path) -> float | NDArray:
+def _(target_model: Path | str, ref_model: Path) -> float | NDArray:
     cmd = [
         "USalign", "-outfmt", "2", "-mm", "1", "-ter", "0",
-        str(target_model.absolute()),
-        str(ref_model.absolute())
+        f"{str(target_model)}", f"{str(ref_model)}"
     ]
+    print(' '.join(cmd))
     p = subprocess.run(cmd, capture_output=True, text=True)
     return float(p.stdout.split("\n")[1].split()[3])
 
@@ -158,7 +158,7 @@ def find_interface(data: Any, dist_cutoff: float = 4.5) -> tuple:
 
 
 @find_interface.register
-def _(data: list[Chain], dist_cutoff: float = 4.5) -> tuple:
+def _(data: list, dist_cutoff: float = 4.5) -> tuple:
     chain_ints = np.zeros((len(data), len(data)), dtype=object)
 
     searchers = np.zeros(len(data), dtype=object)

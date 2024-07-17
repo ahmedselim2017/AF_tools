@@ -3,8 +3,13 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import LogNorm
 import matplotlib.figure
 
+from pandas import DataFrame
+import seaborn as sns
+
 import numpy as np
 from numpy.typing import NDArray
+
+from natsort import natsort_keygen
 
 from af_tools.output_types import AFModel, AFPrediction, AF2Model, AF2Prediction, AF3Model, AF3Prediction
 
@@ -25,11 +30,14 @@ class AFPlotter:
         if colors:
             self.colors = colors
         else:
-            self.colors = list(mcolors.TABLEAU_COLORS.values())
+            self.colors = sns.color_palette()
 
         self.afcolors = ["#FF7D45", "#FFDB13", "#65CBF3", "#0053D6"]
 
-    def plot_plddt(self, prediction: AFPrediction) -> matplotlib.figure.Figure:
+    def plot_plddt(self, df: DataFrame) -> matplotlib.figure.Figure:
+
+        df_sorted = df.sort_values(by="best_model_path", key=natsort_keygen())
+        df_sorted = df_sorted.reset_index()
 
         fig = plt.figure(figsize=self.figsize)
         ax = plt.axes()
@@ -41,43 +49,7 @@ class AFPlotter:
         ax.axhspan(70, 90, facecolor=self.afcolors[2], alpha=0.15)
         ax.axhspan(90, 100, facecolor=self.afcolors[3], alpha=0.15)
 
-        if isinstance(prediction, AF3Prediction):
-            ax.set_xlabel("Atom")
-            for af3model in reversed(prediction.models):
-                ax.plot(
-                    range(1,
-                          len(af3model.atom_plddts) + 1),
-                    af3model.atom_plddts,
-                    color=self.colors[af3model.rank - 1 % len(self.colors)],
-                    label=
-                    f"{af3model.name} Rank {af3model.rank} Mean pLDDT {af3model.mean_plddt:.3f}",
-                )
-
-                if len(af3model.atom_chain_ends) > 1:
-                    ax.vlines(
-                        af3model.atom_chain_ends[:-1],
-                        ymin=0,
-                        ymax=100,
-                        color="black",
-                    )
-
-        elif isinstance(prediction, AF2Prediction):
-            ax.set_xlabel("Residue")
-            for af2model in reversed(prediction.models):
-                ax.plot(
-                    range(1,
-                          len(af2model.residue_plddts) + 1),
-                    af2model.residue_plddts,
-                    color=self.colors[af2model.rank - 1 % len(self.colors)],
-                    label=
-                    f"{af2model.name} Rank {af2model.rank} Mean pLDDT {af2model.mean_plddt:.3f}",
-                )
-
-                if len(af2model.chain_ends) > 1:
-                    ax.vlines(af2model.chain_ends[:-1],
-                              ymin=0,
-                              ymax=100,
-                              color="black")
+        sns.lineplot(ax=ax, data=df_sorted, y="plddt", hue="index")
 
         fig.legend(loc="lower left", bbox_to_anchor=(0.05, 0.07), reverse=True)
         fig.tight_layout()
