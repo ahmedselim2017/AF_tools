@@ -117,6 +117,8 @@ def analyze(af_dir: Path, fig_dir: Path | None, process_count: int,
     if af_dir is not None:
         afoutput = AFParser(path=af_dir,
                             process_number=process_count,
+                            ref_path=Path(ref_structure)
+                            if ref_structure is not None else None,
                             sort_plddt=False).get_output()
     elif pickle_load_path is not None:
         with open(pickle_load_path, "rb") as pickle_load_fh:

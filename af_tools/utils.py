@@ -78,7 +78,7 @@ def calculate_tm(target_model: Any, ref_model: Path) -> float | NDArray:
 @calculate_tm.register
 def _(target_model: Path, ref_model: Path) -> float | NDArray:
     cmd = [
-        "USalign", "-outfmt", "2",
+        "USalign", "-outfmt", "2", "-mm", "1", "-ter", "0",
         str(target_model.absolute()),
         str(ref_model.absolute())
     ]
