@@ -18,7 +18,7 @@ class AFParser():
                  should_load: list[str] | None = None):
         self.path = self._check_path(path).absolute()
         self.output_type = output_type
-        self.output_types = ["AF3", "COLAB"]
+        self.output_types = ["AF3", "COLAB_AF2"]
         self.process_number = process_number
         self.sort_plddt = sort_plddt
         self.should_load = should_load
@@ -48,9 +48,10 @@ class AFParser():
             pbar = tqdm(path.rglob("*.done.txt"))
             for donetxt_path in pbar:
                 data.extend(
-                    AF2Output(donetxt_path.parent,
-                              donetxt_path.with_suffix("").with_suffix(""),
-                              should_load=self.should_load).get_data())
+                    AF2Output(
+                        donetxt_path.parent,
+                        donetxt_path.with_suffix("").with_suffix("").name,
+                        should_load=self.should_load).get_data())
         elif output_type == "MIXED":
             for o_type in self.output_types:
                 data.extend(

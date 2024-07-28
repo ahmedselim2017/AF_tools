@@ -12,7 +12,7 @@ class AF2Output(AFOutput):
 
     def __init__(self,
                  path: Path,
-                 pred_name: Path,
+                 pred_name: str,
                  should_load: list[str] | None = None,
                  is_colabfold: bool = True):
 
@@ -64,6 +64,7 @@ class AF2Output(AFOutput):
 
             m_scores_path: Path = self.path / m_unrel_path.name[::-1].replace(
                 "_unrelaxed_rank_"[::-1], "_scores_rank_"[::-1], 1)[::-1]
+            m_scores_path = m_scores_path.with_suffix(".json")
 
             plddt: None | NDArray = None
             mean_plddt: None | float = None
