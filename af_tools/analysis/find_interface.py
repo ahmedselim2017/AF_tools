@@ -1,10 +1,11 @@
 from functools import singledispatch
 from typing import Any
 
-from Bio.PDB.Structure import Structure
 import numpy as np
 import pandas as pd
+import networkx as nx
 
+from Bio.PDB.Structure import Structure
 from Bio.PDB.Chain import Chain
 from Bio.PDB.NeighborSearch import NeighborSearch
 from Bio.PDB.Residue import Residue
@@ -17,8 +18,7 @@ def find_chain_interface(chainA: Chain,
                          chainA_searcher: NeighborSearch | None = None,
                          chainB_searcher: NeighborSearch | None = None,
                          dist_cutoff: float = 4.5,
-                         plddts: list[float] | None = None,
-                         def_plddt: int = 30):
+                         plddts: list[float] | None = None):
 
     if chainA_searcher is None:
         chainA_searcher = NeighborSearch(list(chainA.get_atoms()))
@@ -26,9 +26,10 @@ def find_chain_interface(chainA: Chain,
         chainB_searcher = NeighborSearch(list(chainB.get_atoms()))
 
     A_int: set[int] = set()
+    A_plddts: list[float] = []
     B_int: set[int] = set()
+    B_plddts: list[float] = []
 
-    int_plddts: list[float] = []
     for a_atom in chainA.get_atoms():
         for int_res in chainB_searcher.search(a_atom.get_coord(),
                                               dist_cutoff,
@@ -37,7 +38,7 @@ def find_chain_interface(chainA: Chain,
             B_int.add(int_res.id[1])
             if plddts is not None:
                 for int_atom in int_res.get_atoms():
-                    int_plddts.append(plddts[int_atom.serial_number - 1])
+                    B_plddts.append(plddts[int_atom.serial_number - 1])
 
     for b_atom in chainB.get_atoms():
         for int_res in chainA_searcher.search(b_atom.get_coord(),
@@ -48,15 +49,17 @@ def find_chain_interface(chainA: Chain,
 
             if plddts is not None:
                 for int_atom in int_res.get_atoms():
-                    int_plddts.append(plddts[int_atom.serial_number - 1])
+                    A_plddts.append(plddts[int_atom.serial_number - 1])
 
-    if len(int_plddts) == 0:
-        return def_plddt, None, None
-    return np.asarray(int_plddts).mean(), A_int, B_int
+    if (len(A_int) + len(B_int)) == 0:
+        return None, None, None, None
+    return A_plddts, A_int, B_plddts, B_int
 
 
 @singledispatch
-def find_interface(data: Any, dist_cutoff: float = 4.5, plddts=None) -> tuple:
+def find_interface(data: Any,
+                   dist_cutoff: float = 4.5,
+                   plddts=None) -> tuple[float, nx.DiGraph]:
     raise NotImplementedError((f"Argument type {type(data)} for data is"
                                "not implemented for find_interface function."))
 
@@ -64,13 +67,13 @@ def find_interface(data: Any, dist_cutoff: float = 4.5, plddts=None) -> tuple:
 @find_interface.register
 def _(data: Structure,
       dist_cutoff: float = 4.5,
-      plddts: list | None = None) -> tuple:
+      plddts: list | None = None) -> tuple[float, nx.DiGraph]:
 
     chains = list(data.get_chains())
     len_chains = len(chains)
 
-    chain_ints = np.zeros((len_chains, len_chains), dtype=object)
-    mean_plddts = np.full(len_chains, np.nan, dtype=float)
+    int_graph = nx.DiGraph()
+    int_graph.add_nodes_from(range(len_chains))
 
     searchers = np.zeros(len(chains), dtype=object)
 
@@ -81,26 +84,33 @@ def _(data: Structure,
         for j, chainB in enumerate(chains):
             if i <= j:
                 continue
-            mean_plddts[i][j], chain_ints[i][j], chain_ints[j][
-                i] = find_chain_interface(chainA=chainA,
-                                          chainB=chainB,
-                                          chainA_searcher=searchers[i],
-                                          chainB_searcher=searchers[j],
-                                          plddts=plddts,
-                                          dist_cutoff=dist_cutoff)
+            A_plddts, A_int, B_int, B_plddts = find_chain_interface(
+                chainA=chainA,
+                chainB=chainB,
+                chainA_searcher=searchers[i],
+                chainB_searcher=searchers[j],
+                plddts=plddts,
+                dist_cutoff=dist_cutoff)
 
-    return mean_plddts, chain_ints
+            int_graph.add_edge(i, j, plddts=A_plddts, res=A_int)
+            int_graph.add_edge(j, i, plddts=B_plddts, res=B_int)
+
+    mean_plddt = np.mean(
+        np.concatenate(
+            list(nx.get_edge_attributes(int_graph, "plddts").values())))
+    assert isinstance(mean_plddt, float)
+    return mean_plddt, int_graph
 
 
 @find_interface.register
 def _(data: str,
       dist_cutoff: float = 4.5,
-      plddts: list | None = None) -> tuple:
+      plddts: list | None = None) -> tuple[float, nx.DiGraph]:
     return find_interface(load_structure(data), dist_cutoff, plddts)
 
 
 @find_interface.register
-def _(data: pd.Series, dist_cutoff: float = 4.5) -> tuple:
+def _(data: pd.Series, dist_cutoff: float = 4.5) -> tuple[float, nx.DiGraph]:
     return find_interface(
         load_structure(data["best_model_path"]),  # type:ignore
         dist_cutoff,
