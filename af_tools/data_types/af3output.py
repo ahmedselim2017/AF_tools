@@ -1,148 +1,127 @@
-from dataclasses import dataclass
-import multiprocessing
-import operator
-from pathlib import Path
-from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 import orjson
-from tqdm import tqdm
-from natsort import natsorted
 
-from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
-from af_tools.output_types import AF3Prediction, AF3Model
 
 
 class AF3Output(AFOutput):
 
-    def get_preds_from_af3_dir(self, af3dir: Path) -> list[AF3Prediction]:
-        af_version = "alphafold3"
-        full_data_paths = natsorted(af3dir.rglob("*_full_data*.json"))
-        summary_data_paths = natsorted(
-            af3dir.glob("*summary_confidences_*.json"))
-        model_paths = natsorted(af3dir.glob("*.cif"))
+    def get_data(self) -> list[list[Any]]:
+        data: list[list[Any]] = []
 
-        pred_name = full_data_paths[0].name.split("_full_data_")[0]
-        models: list[AF3Model] = []
-        for i, (full_data_path, summary_data_path, model_path) in enumerate(
-                zip(full_data_paths, summary_data_paths, model_paths)):
-            with open(full_data_path,
-                      "rb") as full_data_file, open(summary_data_path,
-                                                    "rb") as summary_data_file:
-                full_data = orjson.loads(full_data_file.read())
-                summary_data = orjson.loads(summary_data_file.read())
+        m_paths = self.path.glob("*_model_*.cif")
+        pred_name = None
+        for m_path in m_paths:
+            if pred_name is None:
+                pred_name = "_model_".join(m_path.name.split("_model_")[:-1])
 
-            atom_chain_lengths: list[int] = []
-            atom_id_old = ""
-            chain_length = 0
-            for atom_id in full_data["atom_chain_ids"]:
-                if atom_id != atom_id_old:
-                    if atom_id_old != "":
-                        atom_chain_lengths.append(chain_length)
-                    chain_length = 1
-                else:
-                    chain_length += 1
-                atom_id_old = atom_id
-            atom_chain_lengths.append(chain_length)
+            m_summary_path = (self.path / m_path.stem[::-1].replace(
+                "_model_"[::-1], "_summary_confidences_"[::-1],
+                1)[::-1]).with_suffix(".json")
+            m_full_data_path = (
+                self.path /
+                m_path.stem[::-1].replace("_model_"[::-1], "_full_data_"[::-1],
+                                          1)[::-1]).with_suffix(".json")
 
-            atom_chain_ends: list[int] = []
-            for chain_len in atom_chain_lengths:
-                if atom_chain_ends == []:
-                    atom_chain_ends.append(chain_len)
-                else:
-                    atom_chain_ends.append(chain_len + atom_chain_ends[-1])
+            plddt: None | NDArray = None
+            mean_plddt: None | float = None
+            pae: None | NDArray = None
+            contact_probs: None | NDArray = None
+            atom_chain_ids: None | list[str] = None
+            token_chain_ids: None | list[str] = None
+            token_res_ids: None | list[int] = None
+            atom_chain_ends: None | list[int] = None
+            token_chain_ends: None | list[int] = None
 
-            token_chain_lengths: list[int] = []
-            token_id_old = ""
-            chain_length = 0
-            for token_id in full_data["token_chain_ids"]:
-                if token_id != token_id_old:
-                    if token_id_old != "":
-                        token_chain_lengths.append(chain_length)
-                    chain_length = 1
-                else:
-                    chain_length += 1
-                token_id_old = token_id
-            token_chain_lengths.append(chain_length)
+            if "mean_plddt" in self.should_load or "plddt" in self.should_load or "pae" in self.should_load or "contact_probs" in self.should_load:
+                with open(m_full_data_path, "rb") as m_full_data_file:
+                    m_full_data = orjson.loads(m_full_data_file.read())
 
-            token_chain_ends: list[int] = []
-            for chain_len in token_chain_lengths:
-                if token_chain_ends == []:
-                    token_chain_ends.append(chain_len)
-                else:
-                    token_chain_ends.append(chain_len + token_chain_ends[-1])
+                    if "mean_plddt" in self.should_load:
+                        plddt = np.asarray(m_full_data["atom_plddts"],
+                                           dtype=float)
+                        mean_plddt = np.mean(plddt)
+                        if "plddt" in self.should_load:
+                            atom_chain_ids = m_full_data["atom_chain_ids"]
+                        else:
+                            plddt = None
 
-            atom_plddts = np.asarray(full_data["atom_plddts"])
-            atom_chain_ids = full_data["atom_chain_ids"]
+                    if "pae" in self.should_load:
+                        pae = np.asarray(m_full_data["pae"], dtype=float)
+                        token_chain_ids = m_full_data["token_chain_ids"]
+                        token_res_ids = m_full_data["token_res_ids"]
 
-            pae = np.asarray(full_data["pae"])
-            token_chain_ids = full_data["token_chain_ids"]
-            token_res_ids = np.asfarray(full_data["token_res_ids"])
+                    if "contact_probs" in self.should_load:
+                        contact_probs = np.asarray(
+                            m_full_data["contact_probs"], dtype=float)
+                        token_chain_ids = m_full_data["token_chain_ids"]
+                        token_res_ids = m_full_data["token_res_ids"]
 
-            token_res_ids = np.asarray(full_data["token_res_ids"])
-            contact_probs = np.asarray(full_data["contact_probs"])
-            if summary_data["iptm"] is not None:
-                multimer_conf = 0.8 * summary_data[
-                    "iptm"] + 0.2 * summary_data["ptm"]
-            else:
-                # TODO
-                multimer_conf = -1
-            models.append(
-                AF3Model(name=pred_name,
-                         model_path=model_path.absolute(),
-                         json_path=full_data_path.absolute(),
-                         rank=i + 1,
-                         mean_plddt=np.mean(atom_plddts, axis=0),
-                         ptm=summary_data["ptm"],
-                         iptm=summary_data["iptm"],
-                         pae=pae,
-                         af_version=af_version,
-                         atom_plddts=atom_plddts,
-                         atom_chain_ends=atom_chain_ends,
-                         token_chain_ends=token_chain_ends,
-                         atom_chain_ids=atom_chain_ids,
-                         token_chain_ids=token_chain_ids,
-                         token_res_ids=token_res_ids,
-                         contact_probs=contact_probs,
-                         multimer_conf=multimer_conf))
-        return [
-            AF3Prediction(name=pred_name,
-                          num_ranks=len(models),
-                          af_version=af_version,
-                          models=models,
-                          best_mean_plddt=models[0].mean_plddt,
-                          is_colabfold=False)
-        ]
+                atom_chain_lengths: list[int] = []
+                atom_id_old = ""
+                chain_length = 0
+                for atom_id in m_full_data["atom_chain_ids"]:
+                    if atom_id != atom_id_old:
+                        if atom_id_old != "":
+                            atom_chain_lengths.append(chain_length)
+                        chain_length = 1
+                    else:
+                        chain_length += 1
+                    atom_id_old = atom_id
 
-    def get_predictions(self) -> Sequence[AF3Prediction]:
-        predictions: list[AF3Prediction] = []
+                atom_chain_lengths.append(chain_length)
+                atom_chain_ends = []
+                for chain_len in atom_chain_lengths:
+                    if atom_chain_ends == []:
+                        atom_chain_ends.append(chain_len)
+                    else:
+                        atom_chain_ends.append(chain_len + atom_chain_ends[-1])
 
-        if self.search_recursively:
-            outputs = [
-                x.parent for x in list(self.path.rglob("terms_of_use.md"))
-            ]
-            if self.process_number > 1:
-                with multiprocessing.Pool(
-                        processes=self.process_number) as pool:
-                    results = tqdm(pool.imap_unordered(
-                        utils.worker_af3output_get_pred, outputs),
-                                   total=len(outputs),
-                                   desc="Loading AF3Outputs")
+                token_chain_lengths: list[int] = []
+                token_id_old = ""
+                chain_length = 0
+                for token_id in m_full_data["token_chain_ids"]:
+                    if token_id != token_id_old:
+                        if token_id_old != "":
+                            token_chain_lengths.append(chain_length)
+                        chain_length = 1
+                    else:
+                        chain_length += 1
+                    token_id_old = token_id
+                token_chain_lengths.append(chain_length)
 
-                    predictions = [j for i in results for j in i]
-            else:
-                pbar = tqdm(outputs)
-                for output_dir in pbar:
-                    predictions += self.get_preds_from_af3_dir(output_dir)
+                token_chain_ends = []
+                for chain_len in token_chain_lengths:
+                    if token_chain_ends == []:
+                        token_chain_ends.append(chain_len)
+                    else:
+                        token_chain_ends.append(chain_len +
+                                                token_chain_ends[-1])
 
-                    pbar.set_description(f"Reading {str(output_dir)}")
-        else:
-            predictions = self.get_preds_from_af3_dir(self.path)
+            ptm: None | float = None
+            iptm: None | float = None
+            mult_conf: None | float = None
+            if self.should_load is not None:
+                with open(m_summary_path, "rb") as m_summary_file:
+                    m_summary_data = orjson.loads(m_summary_file.read())
 
-        if self.sort_plddt:
-            predictions = sorted(predictions,
-                                 reverse=True,
-                                 key=operator.attrgetter("best_mean_plddt"))
-        return predictions
+                    ptm = m_summary_data[
+                        "ptm"] if "ptm" in self.should_load else None
+                    iptm = m_summary_data[
+                        "iptm"] if "iptm" in self.should_load else None
+                    mult_conf = None if iptm is None else 0.8 * iptm + 0.2 * ptm
+            data.append([
+                self.path, pred_name, "AF3_SERVER",
+                str(m_path),
+                str(m_path),
+                str(m_full_data_path),
+                str(m_summary_path), atom_chain_ends, token_chain_ends,
+                True if mult_conf is not None else None, plddt, mean_plddt,
+                pae, ptm, iptm, mult_conf, contact_probs, atom_chain_ids,
+                token_chain_ids, token_res_ids
+            ])
+
+        return data

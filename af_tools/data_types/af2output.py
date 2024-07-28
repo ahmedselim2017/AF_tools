@@ -1,57 +1,37 @@
-import multiprocessing
 from pathlib import Path
-from collections.abc import Sequence
-import operator
+from typing import Any
 
-from natsort import natsorted
 import numpy as np
+from numpy.typing import NDArray
 import orjson
-from tqdm import tqdm
 
-from af_tools import utils
 from af_tools.data_types.afoutput import AFOutput
-from af_tools.output_types import AF2Prediction, AF2Model
 
 
 class AF2Output(AFOutput):
 
     def __init__(self,
                  path: Path,
-                 *args,
-                 process_number: int = 1,
-                 search_recursively: bool = False,
-                 is_colabfold: bool = True,
-                 sort_plddt: bool = False,
-                 **kwargs):
+                 pred_name: Path,
+                 should_load: list[str] | None = None,
+                 is_colabfold: bool = True):
 
         self.is_colabfold = is_colabfold
-        super().__init__(path=path,
-                         process_number=process_number,
-                         search_recursively=search_recursively,
-                         sort_plddt=sort_plddt)
+        self.pred_name = pred_name
+        super().__init__(path=path, should_load=should_load)
 
-    def get_predictions(self) -> Sequence[AF2Prediction]:
+    def get_data(self) -> list[list[Any]]:
         if self.is_colabfold:
-            return self.get_colabfold_predictions()
-        return self.get_af2_predictions()
+            return self.get_colab_data()
+        else:
+            raise NotImplementedError(
+                "Non Colabfold AF2 prediction parsing is not yet implemented.")
 
-    def get_preds_from_colabfold_dir(
-            self, colabfold_dir: Path) -> list[AF2Prediction]:
-        predictions: list[AF2Prediction] = []
-        with open(colabfold_dir / "config.json", "rb") as config_file:
-            config_data = orjson.loads(config_file.read())
-
-        af_version = config_data["model_type"]
-        num_ranks = config_data["num_models"]
-
-        # predictions: list[AF2Prediction] = []
-        for pred_done_path in natsorted(list(
-                colabfold_dir.glob("*.done.txt"))):
-            pred_name = pred_done_path.name.split(".")[0]
-
-            with open(colabfold_dir / f"{pred_name}.a3m", "r") as msa_file:
-                msa_header_info = msa_file.readline().replace("#",
-                                                              "").split("\t")
+    def get_colab_data(self) -> list[list[Any]]:
+        data: list[list[Any]] = []
+        with open(self.path / f"{self.pred_name}.a3m") as pred_msa_file:
+            msa_header_info = pred_msa_file.readline().replace("#",
+                                                               "").split("\t")
             msa_header_seq_lengths = [
                 int(x) for x in msa_header_info[0].split(",")
             ]
@@ -71,94 +51,75 @@ class AF2Output(AFOutput):
                 else:
                     chain_ends.append(chain_len + chain_ends[-1])
 
-            model_unrel_paths = natsorted(
-                colabfold_dir.glob(f"{pred_name}_unrelaxed_rank_*.pdb"))
-            model_rel_paths = natsorted(
-                colabfold_dir.glob(f"{pred_name}_relaxed_rank_*.pdb"))
-            score_paths = natsorted(
-                colabfold_dir.glob(f"{pred_name}_scores_rank_*.json"))
+            is_multimer = True if len(msa_header_seq_lengths) == 1 else False
 
-            models: list[AF2Model] = []
-            for i, (model_unrel_path, score_path) in enumerate(
-                    zip(model_unrel_paths, score_paths)):
-                model_rel_path = None
-                if i < config_data["num_relax"]:
-                    try:
-                        model_rel_path = model_rel_paths[i].absolute()
-                    except IndexError as a:
-                        print(model_rel_paths, i, pred_name)
-                        print(a)
-                        exit()
+        m_unrel_paths = self.path.glob(
+            f"{self.pred_name}_unrelaxed_rank_*.pdb")
+        for m_unrel_path in m_unrel_paths:
 
-                with open(score_path, "rb") as score_file:
-                    score_data = orjson.loads(score_file.read())
-                pae = np.asarray(score_data["pae"])
-                plddt = np.asarray(score_data["plddt"])
-                ptm = float(score_data["ptm"])
-                try:
-                    iptm = float(score_data["iptm"])
-                except KeyError:
-                    # TODO
-                    iptm = np.NINF
+            m_rel_path: Path | None = self.path / m_unrel_path.name[::-1].replace(
+                "_unrelaxed_rank_"[::-1], "_relaxed_rank_"[::-1], 1)[::-1]
+            assert isinstance(m_rel_path, Path)
+            m_rel_path = m_rel_path if m_rel_path.is_file() else None
 
-                models.append(
-                    AF2Model(name=pred_name,
-                             model_path=model_unrel_path.absolute(),
-                             relaxed_pdb_path=model_rel_path,
-                             json_path=score_path.absolute(),
-                             rank=i + 1,
-                             mean_plddt=np.mean(plddt, axis=0),
-                             pae=pae,
-                             af_version=af_version,
-                             residue_plddts=plddt,
-                             chain_ends=chain_ends,
-                             ptm=ptm,
-                             iptm=iptm,
-                             multimer_conf=0.8 * iptm + 0.2 * ptm))
+            m_scores_path: Path = self.path / m_unrel_path.name[::-1].replace(
+                "_unrelaxed_rank_"[::-1], "_scores_rank_"[::-1], 1)[::-1]
 
-            predictions.append(
-                AF2Prediction(
-                    name=pred_name,
-                    num_ranks=num_ranks,
-                    af_version=af_version,
-                    models=models,
-                    best_mean_plddt=models[0].mean_plddt,
-                    is_colabfold=True,
-                ))
+            plddt: None | NDArray = None
+            mean_plddt: None | float = None
+            pae: None | NDArray = None
+            ptm: None | float = None
+            iptm: None | float = None
+            mult_conf: None | float = None
 
-        return predictions
+            if self.should_load is not None:
+                with open(m_scores_path, "rb") as m_scores_file:
+                    m_scores_data = orjson.loads(m_scores_file.read())
+                    if "mean_plddt" in self.should_load:
+                        plddt = np.asarray(m_scores_data["plddt"], dtype=float)
+                        mean_plddt = np.mean(plddt)
+                        plddt = plddt if "plddt" in self.should_load else None
+                    else:
+                        mean_plddt = None
+                        plddt = np.asarray(
+                            m_scores_data["plddt"], dtype=float
+                        ) if "plddt" in self.should_load else None
 
-    def get_colabfold_predictions(self) -> Sequence[AF2Prediction]:
-
-        predictions: list[AF2Prediction] = []
-        if self.search_recursively:
-            outputs = natsorted(
-                [x.parent for x in list(self.path.rglob("config.json"))])
-            if self.process_number > 1:
-                with multiprocessing.Pool(
-                        processes=self.process_number) as pool:
-                    results = tqdm(pool.map(utils.worker_af2output_get_pred,
-                                            outputs),
-                                   total=len(outputs),
-                                   desc="Loading Colabfold predictions")
-                    predictions = [j for i in results
-                                   for j in i]  # flatten the results
-            else:
-                pbar = tqdm(outputs)
-                for output_dir in pbar:
-                    predictions += self.get_preds_from_colabfold_dir(
-                        output_dir)
-
-                    pbar.set_description(f"Reading {str(output_dir)}")
-        else:
-            predictions = self.get_preds_from_colabfold_dir(self.path)
-
-        if self.sort_plddt:
-            predictions = sorted(predictions,
-                                 reverse=True,
-                                 key=operator.attrgetter("best_mean_plddt"))
-
-        return predictions
-
-    def get_af2_predictions(self) -> Sequence[AF2Prediction]:
-        return []
+                    pae = np.asarray(
+                        m_scores_data["pae"],
+                        dtype=float) if "pae" in self.should_load else None
+                    ptm = m_scores_data[
+                        "ptm"] if "ptm" in self.should_load else None
+                    if is_multimer:
+                        iptm = m_scores_data[
+                            "iptm"] if "ptm" in self.should_load else None
+                        mult_conf = 0.8 * m_scores_data[
+                            "iptm"] + 0.2 * m_scores_data[
+                                "ptm"] if "mult_conf" in self.should_load else None
+                    else:
+                        iptm = None
+                        mult_conf = None
+            data.append([
+                self.path,
+                self.pred_name,
+                "AF2_COLAB",
+                str(m_rel_path)
+                if m_rel_path is not None else str(m_unrel_path),
+                str(m_unrel_path),
+                str(m_scores_path),
+                None,  # summary JSON path
+                chain_ends,  # chain_ends for plddt
+                chain_ends,  # chain_ends for pae
+                is_multimer,
+                plddt,
+                mean_plddt,
+                pae,
+                ptm,
+                iptm,
+                mult_conf,
+                None,  # contact_probs
+                None,  # atom_chain_ids
+                None,  # token_chain_ids
+                None  # token_res_ids
+            ])
+        return data
