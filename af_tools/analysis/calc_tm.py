@@ -21,7 +21,6 @@ def _(target_model: str, ref_model: str) -> float:
         "USalign", "-outfmt", "2", "-mm", "1", "-ter", "0",
         f"{str(target_model)}", f"{str(ref_model)}"
     ]
-    print(' '.join(cmd))
     p = subprocess.run(cmd, capture_output=True, text=True)
     return float(p.stdout.split("\n")[1].split()[3])
 

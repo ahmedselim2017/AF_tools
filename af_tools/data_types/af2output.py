@@ -51,7 +51,7 @@ class AF2Output(AFOutput):
                 else:
                     chain_ends.append(chain_len + chain_ends[-1])
 
-            is_multimer = True if len(msa_header_seq_lengths) == 1 else False
+            is_multimer = True if len(msa_header_seq_lengths) != 1 else False
 
         m_unrel_paths = self.path.glob(
             f"{self.pred_name}_unrelaxed_rank_*.pdb")

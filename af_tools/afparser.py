@@ -5,6 +5,7 @@ import pandas as pd
 from tqdm.autonotebook import tqdm
 
 from af_tools.data_types.af2output import AF2Output
+from af_tools.data_types.afsample2output import AFSample2Output
 from af_tools.data_types.af3output import AF3Output
 
 
@@ -52,6 +53,10 @@ class AFParser():
                         donetxt_path.parent,
                         donetxt_path.with_suffix("").with_suffix("").name,
                         should_load=self.should_load).get_data())
+        elif output_type == "AFSAMPLE2":
+            data.extend(
+                AFSample2Output(path, should_load=self.should_load).get_data())
+
         elif output_type == "MIXED":
             for o_type in self.output_types:
                 data.extend(
