@@ -84,7 +84,7 @@ def _(data: Structure,
         for j, chainB in enumerate(chains):
             if i <= j:
                 continue
-            A_plddts, A_int, B_int, B_plddts = find_chain_interface(
+            A_plddts, A_int, B_plddts, B_int = find_chain_interface(
                 chainA=chainA,
                 chainB=chainB,
                 chainA_searcher=searchers[i],
@@ -95,9 +95,12 @@ def _(data: Structure,
             int_graph.add_edge(i, j, plddts=A_plddts, res=A_int)
             int_graph.add_edge(j, i, plddts=B_plddts, res=B_int)
 
-    mean_plddt = np.mean(
-        np.concatenate(
-            list(nx.get_edge_attributes(int_graph, "plddts").values())))
+    if int_graph.number_of_edges == 0:
+        mean_plddt = 30.0
+    else:
+        mean_plddt = np.mean(
+            np.concatenate(
+                list(nx.get_edge_attributes(int_graph, "plddts").values())))
     assert isinstance(mean_plddt, float)
     return mean_plddt, int_graph
 
