@@ -92,10 +92,11 @@ def _(data: Structure,
                 plddts=plddts,
                 dist_cutoff=dist_cutoff)
 
-            int_graph.add_edge(i, j, plddts=A_plddts, res=A_int)
-            int_graph.add_edge(j, i, plddts=B_plddts, res=B_int)
+            if A_plddts is not None:
+                int_graph.add_edge(i, j, plddts=A_plddts, res=A_int)
+                int_graph.add_edge(j, i, plddts=B_plddts, res=B_int)
 
-    if int_graph.number_of_edges == 0:
+    if int_graph.number_of_edges() == 0:
         mean_plddt = 30.0
     else:
         mean_plddt = np.mean(

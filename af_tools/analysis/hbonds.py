@@ -93,6 +93,7 @@ def draw_hbonds_graph(G: nx.classes.graph.Graph,
         layers[s[0]].append(n)
         node_labels[n] = f"{s[1]}{s[2]}"
     layers = list(dict(sorted(layers.items())).values())  # type: ignore
+    layers = layers[::-1]
 
     edge_labels = nx.get_edge_attributes(G, "count")
     red_color = sns.color_palette()[3]
@@ -134,9 +135,9 @@ def draw_hbonds_graph(G: nx.classes.graph.Graph,
     for n in G.nodes:
         graph.node_label_artists[n].set_size("medium")
         pos = graph.node_label_artists[n].get_position()
-        if n.startswith("A"):
+        if n.startswith("B"):
             graph.node_label_artists[n].set_position((pos[0] - 0.05, pos[1]))
-        elif n.startswith("B"):
+        elif n.startswith("A"):
             graph.node_label_artists[n].set_position((pos[0] + 0.05, pos[1]))
     for e in G.edges:
         pos = graph.edge_label_artists[e].get_position()
