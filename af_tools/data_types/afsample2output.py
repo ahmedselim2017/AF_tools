@@ -1,4 +1,5 @@
 from typing import Any
+from pathlib import Path
 from af_tools.data_types.afoutput import AFOutput
 
 from tqdm.autonotebook import tqdm
@@ -11,7 +12,7 @@ class AFSample2Output(AFOutput):
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
 
-        pbar = tqdm(self.path.glob("*pdb"))
+        pbar = tqdm(self.path.glob("unrelaxed*pdb"))
         for pdb_path in pbar:
             pickle_path = self.path / pdb_path.with_suffix(
                 ".pkl").name.replace("unrelaxed", "result")
@@ -28,11 +29,17 @@ class AFSample2Output(AFOutput):
             except KeyError as _:
                 is_multimer = False
 
+            relaxed_path: Path | None = None
+            if Path(self.path /
+                    pdb_path.name.replace("unrelaxed", "relaxed")).is_file():
+                relaxed_path = self.path / pdb_path.name.replace(
+                    "unrelaxed", "relaxed")
+
             data.append([
                 self.path,
                 self.path.name,
                 "AFSAMPLE2",
-                str(pdb_path),
+                str(relaxed_path) if relaxed_path else str(pdb_path),
                 str(pdb_path),
                 str(pickle_path),
                 None,  # summary JSON path,

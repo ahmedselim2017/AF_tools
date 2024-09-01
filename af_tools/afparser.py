@@ -34,7 +34,7 @@ class AFParser():
 
         data: list[list[Any]] = []
         if output_type == "AF3":
-            pbar = tqdm(path.rglob("terms_of_use.md"))
+            pbar = tqdm(path.rglob("*terms_of_use.md"))
             for o_terms_path in pbar:
                 with open(o_terms_path, "r") as o_terms_file:
                     if "AlphaFold Server" not in o_terms_file.readline():
