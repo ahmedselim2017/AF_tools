@@ -78,9 +78,18 @@ def _(data: Structure,
                     if (v1, v2) not in int_graph.edges:
                         edge_plddts = []
                         for a_res_atom in a_res.get_atoms():
-                            edge_plddts.append(a_res_atom.get_bfactor())
+                            if "AF3" in data["output_type"]:
+                                edge_plddts.append(a_res_atom.get_bfactor())
+                            elif a_res_atom.name == "CA":
+                                edge_plddts.append(a_res_atom.get_bfactor())
+                                break
+
                         for b_res_atom in b_res.get_atoms():
-                            edge_plddts.append(b_res_atom.get_bfactor())
+                            if "AF3" in data["output_type"]:
+                                edge_plddts.append(b_res_atom.get_bfactor())
+                            elif b_res_atom.name == "CA":
+                                edge_plddts.append(b_res_atom.get_bfactor())
+                                break
 
                         int_graph.add_edge(v1, v2, count=1, plddts=edge_plddts)
                     else:
