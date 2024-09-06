@@ -12,7 +12,7 @@ class AF3Output(AFOutput):
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
 
-        m_paths = self.path.glob("*_model_*.cif")
+        m_paths = self.path.glob("*_model_*.cif*")
         pred_name = None
         for m_path in m_paths:
             if pred_name is None:

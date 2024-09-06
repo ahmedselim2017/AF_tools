@@ -54,7 +54,7 @@ class AF2Output(AFOutput):
             is_multimer = True if len(msa_header_seq_lengths) != 1 else False
 
         m_unrel_paths = self.path.glob(
-            f"{self.pred_name}_unrelaxed_rank_*.pdb")
+            f"{self.pred_name}_unrelaxed_rank_*.pdb*")
         for m_unrel_path in m_unrel_paths:
 
             m_rel_path: Path | None = self.path / m_unrel_path.name[::-1].replace(

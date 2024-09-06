@@ -12,7 +12,7 @@ class AFSample2Output(AFOutput):
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
 
-        pbar = tqdm(self.path.glob("unrelaxed*pdb"))
+        pbar = tqdm(self.path.glob("unrelaxed*pdb*"))
         for pdb_path in pbar:
             pickle_path = self.path / pdb_path.with_suffix(
                 ".pkl").name.replace("unrelaxed", "result")
