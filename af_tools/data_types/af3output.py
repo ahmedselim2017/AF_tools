@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 import orjson
+import brotli
 
 from af_tools.data_types.afoutput import AFOutput
 
@@ -21,10 +22,18 @@ class AF3Output(AFOutput):
             m_summary_path = (self.path / m_path.stem[::-1].replace(
                 "_model_"[::-1], "_summary_confidences_"[::-1],
                 1)[::-1]).with_suffix(".json")
+
+            if not m_summary_path.is_file() or self.use_brotli_json:
+                m_summary_path = m_summary_path.with_suffix(".json.br")
+            assert m_summary_path.is_file()
+
             m_full_data_path = (
                 self.path /
                 m_path.stem[::-1].replace("_model_"[::-1], "_full_data_"[::-1],
                                           1)[::-1]).with_suffix(".json")
+            if not m_full_data_path.is_file() or self.use_brotli_json:
+                m_full_data_path = m_full_data_path.with_suffix(".json.br")
+            assert m_full_data_path.is_file()
 
             plddt: None | NDArray = None
             mean_plddt: None | float = None
@@ -36,9 +45,15 @@ class AF3Output(AFOutput):
             atom_chain_ends: None | list[int] = None
             token_chain_ends: None | list[int] = None
 
+            m_full_data: dict | None = None
             if "mean_plddt" in self.should_load or "plddt" in self.should_load or "pae" in self.should_load or "contact_probs" in self.should_load:
                 with open(m_full_data_path, "rb") as m_full_data_file:
-                    m_full_data = orjson.loads(m_full_data_file.read())
+                    if m_full_data_path.suffix == ".json":
+                        m_full_data = orjson.loads(m_full_data_file.read())
+                    elif m_full_data_path.suffix == ".br":
+                        m_full_data = orjson.loads(
+                            brotli.decompress(m_full_data_file.read()))
+                    assert m_full_data
 
                     if "mean_plddt" in self.should_load:
                         plddt = np.asarray(m_full_data["atom_plddts"],
@@ -104,9 +119,16 @@ class AF3Output(AFOutput):
             ptm: None | float = None
             iptm: None | float = None
             mult_conf: None | float = None
+
+            m_summary_data: dict | None = None
             if self.should_load is not None:
                 with open(m_summary_path, "rb") as m_summary_file:
-                    m_summary_data = orjson.loads(m_summary_file.read())
+                    if m_summary_path.suffix == ".json":
+                        m_summary_data = orjson.loads(m_summary_file.read())
+                    elif m_summary_path.suffix == ".br":
+                        m_summary_data = orjson.loads(
+                            brotli.decompress(m_summary_file.read()))
+                    assert m_summary_data
 
                     ptm = m_summary_data[
                         "ptm"] if "ptm" in self.should_load else None

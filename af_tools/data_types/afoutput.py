@@ -9,8 +9,10 @@ class AFOutput:
     def __init__(self,
                  path: Path,
                  ref_path: Path | None = None,
-                 should_load: list[str] | None = None):
+                 should_load: list[str] | None = None,
+                 use_brotli_json: bool = False):
         self.path = self.check_path(path)
+        self.use_brotli_json = use_brotli_json
         self.ref_path = ref_path
         self.should_load = should_load if should_load else set(
             ["mean_plddt", "mult_conf", "ptm", "iptm"])

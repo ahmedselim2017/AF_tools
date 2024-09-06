@@ -3,6 +3,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+import brotli
 import orjson
 
 from af_tools.data_types.afoutput import AFOutput
@@ -14,11 +15,14 @@ class AF2Output(AFOutput):
                  path: Path,
                  pred_name: str,
                  should_load: list[str] | None = None,
-                 is_colabfold: bool = True):
+                 is_colabfold: bool = True,
+                 use_brotli_json: bool = False):
 
         self.is_colabfold = is_colabfold
         self.pred_name = pred_name
-        super().__init__(path=path, should_load=should_load)
+        super().__init__(path=path,
+                         should_load=should_load,
+                         use_brotli_json=use_brotli_json)
 
     def get_data(self) -> list[list[Any]]:
         if self.is_colabfold:
@@ -64,7 +68,12 @@ class AF2Output(AFOutput):
 
             m_scores_path: Path = self.path / m_unrel_path.name[::-1].replace(
                 "_unrelaxed_rank_"[::-1], "_scores_rank_"[::-1], 1)[::-1]
+            assert m_scores_path.is_file()
+
             m_scores_path = m_scores_path.with_suffix(".json")
+            if not m_scores_path.is_file() or self.use_brotli_json:
+                m_scores_path = m_scores_path.with_suffix(".json.br")
+            assert m_scores_path.is_file()
 
             plddt: None | NDArray = None
             mean_plddt: None | float = None
@@ -75,7 +84,14 @@ class AF2Output(AFOutput):
 
             if self.should_load is not None:
                 with open(m_scores_path, "rb") as m_scores_file:
-                    m_scores_data = orjson.loads(m_scores_file.read())
+                    m_scores_data: dict | None = None
+                    if m_scores_path.suffix == ".json":
+                        m_scores_data = orjson.loads(m_scores_file.read())
+                    elif m_scores_path.suffix == ".br":
+                        m_scores_data = orjson.loads(
+                            brotli.decompress(m_scores_file.read()))
+
+                    assert m_scores_data
                     if "mean_plddt" in self.should_load:
                         plddt = np.asarray(m_scores_data["plddt"], dtype=float)
                         mean_plddt = np.mean(plddt)

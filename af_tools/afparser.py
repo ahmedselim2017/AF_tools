@@ -16,13 +16,15 @@ class AFParser():
                  output_type: str,
                  process_number: int = 1,
                  sort_plddt: bool = True,
-                 should_load: list[str] | None = None):
+                 should_load: list[str] | None = None,
+                 use_brotli_json: bool = False):
         self.path = self._check_path(path).absolute()
         self.output_type = output_type
         self.output_types = ["AF3", "COLAB_AF2"]
         self.process_number = process_number
         self.sort_plddt = sort_plddt
         self.should_load = should_load
+        self.use_brotli_json = use_brotli_json
 
     def _get_output_data(self,
                          path: None | Path = None,
@@ -43,7 +45,8 @@ class AFParser():
 
                 data.extend(
                     AF3Output(o_terms_path.parent,
-                              should_load=self.should_load).get_data())
+                              should_load=self.should_load,
+                              use_brotli_json=self.use_brotli_json).get_data())
 
         elif output_type == "COLAB_AF2":
             pbar = tqdm(path.rglob("*.done.txt"))
@@ -52,7 +55,8 @@ class AFParser():
                     AF2Output(
                         donetxt_path.parent,
                         donetxt_path.with_suffix("").with_suffix("").name,
-                        should_load=self.should_load).get_data())
+                        should_load=self.should_load,
+                        use_brotli_json=self.use_brotli_json).get_data())
         elif output_type == "AFSAMPLE2":
             data.extend(
                 AFSample2Output(path, should_load=self.should_load).get_data())
