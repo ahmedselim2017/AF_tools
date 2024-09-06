@@ -5,6 +5,7 @@ from af_tools.data_types.afoutput import AFOutput
 from tqdm.autonotebook import tqdm
 import pickle
 import numpy as np
+import brotli
 
 
 class AFSample2Output(AFOutput):
@@ -12,12 +13,23 @@ class AFSample2Output(AFOutput):
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
 
-        pbar = tqdm(self.path.glob("unrelaxed*pdb*"))
+        pbar = tqdm(self.path.glob("unrelaxed*pdb"))
         for pdb_path in pbar:
+
             pickle_path = self.path / pdb_path.with_suffix(
                 ".pkl").name.replace("unrelaxed", "result")
+            if (not pickle_path.is_file() or self.use_brotli
+                ) and pickle_path.with_suffix(".pkl.br").is_file():
+                pickle_path = pickle_path.with_suffix(".pkl.br")
+
             with open(pickle_path, "rb") as pickle_file:
-                pickle_data = pickle.load(pickle_file)
+                pickle_data = None
+                if pickle_path.suffix == ".pkl":
+                    pickle_data = pickle.load(pickle_file)
+                elif pickle_path.suffix == ".br":
+                    pickle_data = pickle.loads(
+                        brotli.decompress(pickle_file.read()))
+                assert pickle_data
 
             iptm: float | None = None
             try:

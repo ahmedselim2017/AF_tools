@@ -10,9 +10,9 @@ class AFOutput:
                  path: Path,
                  ref_path: Path | None = None,
                  should_load: list[str] | None = None,
-                 use_brotli_json: bool = False):
+                 use_brotli: bool = False):
         self.path = self.check_path(path)
-        self.use_brotli_json = use_brotli_json
+        self.use_brotli = use_brotli
         self.ref_path = ref_path
         self.should_load = should_load if should_load else set(
             ["mean_plddt", "mult_conf", "ptm", "iptm"])

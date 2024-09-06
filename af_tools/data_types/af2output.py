@@ -16,13 +16,13 @@ class AF2Output(AFOutput):
                  pred_name: str,
                  should_load: list[str] | None = None,
                  is_colabfold: bool = True,
-                 use_brotli_json: bool = False):
+                 use_brotli: bool = False):
 
         self.is_colabfold = is_colabfold
         self.pred_name = pred_name
         super().__init__(path=path,
                          should_load=should_load,
-                         use_brotli_json=use_brotli_json)
+                         use_brotli=use_brotli)
 
     def get_data(self) -> list[list[Any]]:
         if self.is_colabfold:
@@ -71,7 +71,8 @@ class AF2Output(AFOutput):
             assert m_scores_path.is_file()
 
             m_scores_path = m_scores_path.with_suffix(".json")
-            if not m_scores_path.is_file() or self.use_brotli_json:
+            if (not m_scores_path.is_file() or self.use_brotli
+                ) and m_scores_path.with_suffix(".json.br").is_file():
                 m_scores_path = m_scores_path.with_suffix(".json.br")
             assert m_scores_path.is_file()
 

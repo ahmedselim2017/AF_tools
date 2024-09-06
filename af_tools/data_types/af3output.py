@@ -23,7 +23,8 @@ class AF3Output(AFOutput):
                 "_model_"[::-1], "_summary_confidences_"[::-1],
                 1)[::-1]).with_suffix(".json")
 
-            if not m_summary_path.is_file() or self.use_brotli_json:
+            if (not m_summary_path.is_file() or self.use_brotli
+                ) and m_summary_path.with_suffix(".json.br").is_file():
                 m_summary_path = m_summary_path.with_suffix(".json.br")
             assert m_summary_path.is_file()
 
@@ -31,7 +32,8 @@ class AF3Output(AFOutput):
                 self.path /
                 m_path.stem[::-1].replace("_model_"[::-1], "_full_data_"[::-1],
                                           1)[::-1]).with_suffix(".json")
-            if not m_full_data_path.is_file() or self.use_brotli_json:
+            if (not m_full_data_path.is_file() or self.use_brotli
+                ) and m_full_data_path.with_suffix(".json.br").is_file():
                 m_full_data_path = m_full_data_path.with_suffix(".json.br")
             assert m_full_data_path.is_file()
 
