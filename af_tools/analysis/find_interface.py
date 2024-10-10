@@ -15,32 +15,42 @@ from af_tools.analysis.structure_tools import load_structure
 
 
 @singledispatch
-def find_interface(data: Any,
-                   dist_cutoff: float = 4,
-                   plddt=None) -> tuple[float, nx.Graph]:
+def find_interface(
+    data: Any,
+    data_type: str | None = None,
+    dist_cutoff: float = 4,
+) -> tuple[float, nx.Graph]:
     raise NotImplementedError((f"Argument type {type(data)} for data is"
                                "not implemented for find_interface function."))
 
 
 @find_interface.register
-def _(data: str, dist_cutoff: float = 4, plddt=None) -> tuple[float, nx.Graph]:
-    return find_interface(load_structure(data), dist_cutoff, plddt)
+def _(data: str,
+      data_type: str | None = None,
+      dist_cutoff: float = 4) -> tuple[float, nx.Graph]:
+    return find_interface(load_structure(data),
+                          data_type=data_type,
+                          dist_cutoff=dist_cutoff)
 
 
 @find_interface.register
 def _(data: pd.Series,
-      dist_cutoff: float = 4,
-      plddt=None) -> tuple[float, nx.Graph]:
+      data_type: str | None = None,
+      dist_cutoff: float = 4) -> tuple[float, nx.Graph]:
     return find_interface(
         load_structure(data["best_model_path"]),  # type:ignore
-        dist_cutoff,
-        data["plddt"])
+        data_type=data["output_type"],
+        dist_cutoff=dist_cutoff)
 
 
 @find_interface.register
-def _(data: Structure,
-      dist_cutoff: float = 4,
-      plddt=None) -> tuple[float, nx.Graph]:
+def _(
+    data: Structure,
+    data_type: str | None = None,
+    dist_cutoff: float = 4,
+) -> tuple[float, nx.Graph]:
+
+    assert data_type
 
     chains = list(data.get_chains())
 
@@ -78,14 +88,14 @@ def _(data: Structure,
                     if (v1, v2) not in int_graph.edges:
                         edge_plddts = []
                         for a_res_atom in a_res.get_atoms():
-                            if "AF3" in data["output_type"]:
+                            if "AF3" in data_type:
                                 edge_plddts.append(a_res_atom.get_bfactor())
                             elif a_res_atom.name == "CA":
                                 edge_plddts.append(a_res_atom.get_bfactor())
                                 break
 
                         for b_res_atom in b_res.get_atoms():
-                            if "AF3" in data["output_type"]:
+                            if "AF3" in data_type:
                                 edge_plddts.append(b_res_atom.get_bfactor())
                             elif b_res_atom.name == "CA":
                                 edge_plddts.append(b_res_atom.get_bfactor())

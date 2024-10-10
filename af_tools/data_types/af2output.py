@@ -28,6 +28,7 @@ class AF2Output(AFOutput):
         if self.is_colabfold:
             return self.get_colab_data()
         else:
+            print(self.path)
             raise NotImplementedError(
                 "Non Colabfold AF2 prediction parsing is not yet implemented.")
 
@@ -68,7 +69,10 @@ class AF2Output(AFOutput):
 
             m_scores_path: Path = self.path / m_unrel_path.name[::-1].replace(
                 "_unrelaxed_rank_"[::-1], "_scores_rank_"[::-1], 1)[::-1]
-            assert m_scores_path.is_file()
+
+            if not m_scores_path.is_file():
+                print(self.path)
+                raise ValueError(f"{m_scores_path.absolute()} does not exist.")
 
             m_scores_path = m_scores_path.with_suffix(".json")
             if (not m_scores_path.is_file() or self.use_brotli

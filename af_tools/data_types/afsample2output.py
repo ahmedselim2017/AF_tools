@@ -13,11 +13,19 @@ class AFSample2Output(AFOutput):
     def get_data(self) -> list[list[Any]]:
         data: list[list[Any]] = []
 
-        pbar = tqdm(self.path.glob("unrelaxed*pdb"))
+        pbar = tqdm(self.path.glob("unrelaxed*pdb*"))
         for pdb_path in pbar:
 
-            pickle_path = self.path / pdb_path.with_suffix(
-                ".pkl").name.replace("unrelaxed", "result")
+            pickle_path = None
+            if len(pdb_path.suffixes) == 2:
+                pickle_path = self.path / Path(
+                    pdb_path.stem).with_suffix(".pkl").name.replace(
+                        "unrelaxed", "result")
+            elif len(pdb_path.suffixes) == 1:
+                pickle_path = self.path / pdb_path.with_suffix(
+                    ".pkl").name.replace("unrelaxed", "result")
+            assert pickle_path
+
             if (not pickle_path.is_file() or self.use_brotli
                 ) and pickle_path.with_suffix(".pkl.br").is_file():
                 pickle_path = pickle_path.with_suffix(".pkl.br")
